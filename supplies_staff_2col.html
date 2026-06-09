@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>ПВЗ · Сотрудник</title>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800;900&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -708,6 +709,19 @@ body{font-family:'Onest',sans-serif;background:var(--bg);color:var(--t1);min-hei
 </div>
 
 
+
+<!-- CHART EDIT OVERLAY (acceptance stats) -->
+<div class="ov" id="chartEditOv" onclick="if(event.target===this)closeChartEdit()">
+  <div class="modal">
+    <div class="m-h"></div>
+    <div class="m-t" id="chartEditTitle">Приёмка</div>
+    <div class="m-b">
+      <div id="chartEditBody"></div>
+      <button onclick="saveChartEdit()" style="width:100%;margin-top:14px;padding:13px;border-radius:13px;border:none;background:var(--blue);color:#fff;font-family:Onest,sans-serif;font-size:14px;font-weight:700;cursor:pointer">Сохранить</button>
+    </div>
+  </div>
+</div>
+
 <!-- CAMERA PIN OVERLAY -->
 <div class="ov" id="camPinOv" onclick="if(event.target===this)closeCamPin()">
   <div class="modal">
@@ -861,6 +875,7 @@ let pvzMapAll={},editingItem=null;
 let shiftData={},statTimers={},chartPeriod=120,chartInst=null;
 let pageBuilt=false,banners=[],bnrIdx=0,bnrTimer=null;
 let showSMA=true,showAvg=false;
+let mktRequired={};// {mkt: true/false} from /supplies/config/mkt_required (default: required)
 const pvzPickM=new Map();
 let unsubInv=null,unsubCfg=null,unsubPCfg=null,unsubShift=null;
 let supOpen=false;
@@ -953,8 +968,10 @@ onValue(ref(fdb,'/supplies/notifications/general'),snap=>{
 });
 
 // ── PRE-CLOSE CHECK ──
+function mktIsRequired(m){return mktRequired[m]!==false;}// default required
 function statsAllEntered(){
-  return pvzMarkets.length>0 && pvzMarkets.every(m=>{
+  const req=pvzMarkets.filter(mktIsRequired);
+  return req.every(m=>{
     const v=shiftData[`${m}_received_count`];
     return v!==undefined&&v!==null&&String(v).trim()!=='';
   });
@@ -1519,8 +1536,9 @@ window.doShift=async function(type,empId,empName,empVkId){
       await set(ref(fdb,`${base}/open`),{time,user_id:empVkId||empId||'web_staff',username:empName||'Сотрудник',emp_id:empId});
       await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'open_shift',user_id:empVkId||empId||'web_staff',username:empName||'Сотрудник',pvz_name:pvzName,ts:Date.now()});
     }else if(type==='close'){
-      const statsOK=pvzMarkets.some(m=>{const v=shiftData[`${m}_received_count`];return v!==undefined&&v!==null&&String(v).trim()!=='';});
-      if(!statsOK){showErr('Сначала введите статистику приёмки или 0, если ничего не приехало');if(b)b.disabled=false;return;}
+      const reqMkts=pvzMarkets.filter(mktIsRequired);
+      const statsOK=reqMkts.length===0||reqMkts.every(m=>{const v=shiftData[`${m}_received_count`];return v!==undefined&&v!==null&&String(v).trim()!=='';});
+      if(!statsOK){showErr('Введите статистику приёмки по обязательным маркетплейсам (или 0)');if(b)b.disabled=false;return;}
       const closerName=window._todayEmpData?.fullName||window._todayEmpData?.name||'Сотрудник';
       const closerId=window._todayEmpData?.tgChatId||window._todayEmpData?.vk_id||window._todayEmpData?.id||'web_staff';
       await set(ref(fdb,`${base}/close`),{time,user_id:closerId,username:closerName});
@@ -1655,9 +1673,10 @@ function buildMktInputs(){
   g.innerHTML=pvzMarkets.map(m=>{
     const meta=MKTM[m]||{l:m,lo:m.slice(0,2).toUpperCase()};
     // Use custom logo if available, else default colored div
+    const opt=mktRequired[m]===false;
     return `<div class="mkt-row">
       <div class="mkt-logo ${m}">${meta.lo}</div>
-      <div style="flex:1"><div class="mkt-lbl">${meta.l} · принято</div>
+      <div style="flex:1"><div class="mkt-lbl">${meta.l} · принято${opt?' <span style=\"color:var(--t3);font-weight:500;font-size:10px\">(необязательно)</span>':''}</div>
         <input class="mkt-inp" id="si-${m}" type="number" placeholder="—" inputmode="numeric" min="0"
           oninput="onStat('${m}',this)" onblur="blurStat('${m}',this)">
       </div><div class="mkt-chk" id="sc-${m}">✓</div>
@@ -1714,8 +1733,18 @@ async function loadChart(days){
   grad.addColorStop(0,'rgba(0,91,255,.14)');grad.addColorStop(1,'rgba(0,91,255,0)');
   const ds=[{label:'Принято',data,borderColor:'#005BFF',borderWidth:2.5,fill:true,backgroundColor:grad,pointRadius:2.5,pointHoverRadius:6,pointBackgroundColor:'#005BFF',tension:.4}];
   if(showSMA&&data.length>=3)ds.push({label:'SMA-7',data:calcSMA(data),borderColor:'rgba(124,58,237,.7)',borderWidth:1.5,fill:false,pointRadius:0,tension:.4,borderDash:[4,3]});
+  // Company average: read PRECOMPUTED values from /supplies/company_avg
+  // (bot recalculates every 30 min — instant load, no heavy per-request computation)
+  if(showAvg){
+    try{
+      const caSnap=await get(ref(fdb,'/supplies/company_avg'));
+      const ca=caSnap.val()||{};
+      const avgLine=pts.map(p=>ca[p.date]!=null?ca[p.date]:null);
+      ds.push({label:'Ср. по компании',data:avgLine,borderColor:'rgba(52,199,89,.85)',borderWidth:2,fill:false,pointRadius:0,tension:.4,borderDash:[6,3],spanGaps:true});
+    }catch(e){console.warn('avg read',e);}
+  }
   _chartPts=pts;
-  chartInst=new Chart(canvas,{type:'line',data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,onClick:(e,els)=>{if(els.length){openChartEdit(_chartPts[els[0].index]?.date);}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#1A1714',titleColor:'#fff',bodyColor:'rgba(255,255,255,.65)',padding:10,cornerRadius:9,callbacks:{title:ctx=>pts[ctx[0].dataIndex]?.date||'',afterTitle:()=>'нажмите для редактирования'}}},scales:{x:{grid:{display:false},ticks:{color:'#9C9790',font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:10}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{color:'#9C9790',font:{size:9}},beginAtZero:true}}}});
+  chartInst=new Chart(canvas,{type:'line',data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,onClick:(e,els)=>{const main=els.find(el=>el.datasetIndex===0);if(main){openChartEdit(_chartPts[main.index]?.date);}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#1A1714',titleColor:'#fff',bodyColor:'rgba(255,255,255,.65)',padding:10,cornerRadius:9,callbacks:{title:ctx=>pts[ctx[0].dataIndex]?.date||'',afterTitle:()=>'нажмите для редактирования'}}},scales:{x:{grid:{display:false},ticks:{color:'#9C9790',font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:10}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{color:'#9C9790',font:{size:9}},beginAtZero:true}}}});
 }
 
 // ── SUPPLIES ACCORDION ──
@@ -1950,6 +1979,7 @@ setInterval(()=>{
 
 // ── VERSION CHECK ──────────────────────────────────────────────────────────
 const LOCAL_VERSION='1.3.1';
+onValue(ref(fdb,'/supplies/config/mkt_required'),snap=>{mktRequired=snap.val()||{};});
 onValue(ref(fdb,'/supplies/config/app_version'),snap=>{
   const sv=snap.val(),ve=document.getElementById('appVerTxt');
   if(ve)ve.textContent='v'+LOCAL_VERSION;
@@ -2487,30 +2517,48 @@ async function openPersonalAccount(emp){
 
 // ── CHART CLICK TO EDIT ───────────────────────────────────────────
 let _chartPts=[];
+window._chartEditDate=null;
 window.openChartEdit=async function(date){
-  const mkt=pvzMarkets[0]||'ozon';
-  const val=prompt(`Введите значение приёмки для ${date}:`);
-  if(val===null||val==='')return;
-  const v=Math.max(0,parseInt(val)||0);
+  if(!pvzId)return;
+  window._chartEditDate=date;
+  const ym=date.slice(0,7);
+  // Load existing values for this date
+  let existing={};
+  try{
+    const snap=await get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${date}`));
+    existing=snap.val()||{};
+  }catch(e){}
+  const body=document.getElementById('chartEditBody');
+  body.innerHTML=pvzMarkets.map(m=>{
+    const meta=MKTM[m]||{l:m,lo:m.slice(0,2).toUpperCase()};
+    const cur=existing[`${m}_received_count`];
+    return `<div class="mkt-row">
+      <div class="mkt-logo ${m}">${meta.lo}</div>
+      <div style="flex:1"><div class="mkt-lbl">${meta.l} · принято</div>
+        <input class="mkt-inp" id="ce-${m}" type="number" placeholder="—" inputmode="numeric" min="0" value="${cur!=null?cur:''}">
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('chartEditTitle').textContent=`Приёмка за ${ruDateShort(date)}`;
+  document.getElementById('chartEditOv').classList.add('open');
+};
+window.saveChartEdit=async function(){
+  const date=window._chartEditDate;if(!date||!pvzId)return;
   const ym=date.slice(0,7);
   try{
-    const updates={};
-    pvzMarkets.forEach(m=>{
-      // Keep other market values, only update if single market or user confirmed
-      updates[`${m}_received_count`]=v;
-    });
-    if(pvzMarkets.length>1){
-      // For multi-market, ask which one
-      const mk=prompt(`Маркетплейс (${pvzMarkets.join('/')}):`,pvzMarkets[0]);
-      if(!mk||!pvzMarkets.includes(mk))return;
-      await set(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${date}/${mk}_received_count`),v);
-    }else{
-      await set(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${date}/${mkt}_received_count`),v);
+    for(const m of pvzMarkets){
+      const inp=document.getElementById(`ce-${m}`);
+      if(inp&&inp.value!==''){
+        const v=Math.max(0,parseInt(inp.value)||0);
+        await set(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${date}/${m}_received_count`),v);
+      }
     }
-    toast(`${date}: ${v} сохранено`);
+    document.getElementById('chartEditOv').classList.remove('open');
+    toast(`${ruDateShort(date)}: сохранено`);
     loadChart(chartPeriod);
   }catch(e){toast('Ошибка: '+e.message);}
 };
+window.closeChartEdit=function(){document.getElementById('chartEditOv').classList.remove('open');};
 </script>
 <div id="updateBanner" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--blue);color:#fff;padding:10px 18px;border-radius:12px;font-size:12px;font-weight:600;cursor:pointer;z-index:200;box-shadow:0 4px 20px rgba(0,91,255,.4)" onclick="location.reload()">🔄 Доступно обновление — нажмите для обновления</div>
 <div style="text-align:center;padding:6px;font-size:10px;color:var(--t3);background:var(--card2);border-top:1px solid var(--border)">ПВЗ Система · <span id="appVerTxt">v1.3.1</span></div>
