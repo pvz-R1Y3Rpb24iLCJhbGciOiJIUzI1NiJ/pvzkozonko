@@ -668,6 +668,7 @@ body{font-family:'Onest',sans-serif;background:var(--bg);color:var(--t1);min-hei
   </div>
 </div>
 
+<div id="notifPermBanner" style="display:none;padding:10px 16px;font-size:12px;line-height:1.5;border-bottom:1px solid var(--border)"></div>
 <div id="errPanel"></div>
 <div id="toast"></div>
 
@@ -872,10 +873,53 @@ tickClock();setInterval(tickClock,10000);
 
 // ── PUSH NOTIFICATIONS ──
 // Request permission on load
-(async()=>{if('Notification'in window&&Notification.permission==='default')await Notification.requestPermission();})();
+// ── NOTIFICATION PERMISSION ────────────────────────────────────────────────
+function updateNotifBanner(){
+  const banner=document.getElementById('notifPermBanner');
+  if(!banner)return;
+  if(!('Notification' in window)){banner.style.display='none';return;}
+  if(Notification.permission==='granted'){banner.style.display='none';return;}
+  if(Notification.permission==='denied'){
+    banner.style.display='';
+    banner.innerHTML='🔕 Уведомления заблокированы. <b>Как включить:</b> нажмите на значок 🔒 слева от адреса → Уведомления → Разрешить → обновите страницу';
+    banner.style.background='rgba(255,69,58,.12)';
+    banner.style.color='var(--red)';
+    return;
+  }
+  // permission === 'default' - need user gesture to request
+  banner.style.display='';
+  banner.innerHTML='🔔 <b>Включите уведомления</b> чтобы получать сигналы о закрытии, новых уведомлениях и т.д. <button onclick="askNotifPermission()" style="margin-left:10px;padding:5px 14px;border-radius:8px;border:none;background:var(--blue);color:#fff;font-family:Onest,sans-serif;font-size:12px;font-weight:700;cursor:pointer">Включить</button>';
+  banner.style.background='rgba(0,91,255,.08)';
+  banner.style.color='var(--t1)';
+}
+window.askNotifPermission=async function(){
+  if(!('Notification' in window))return;
+  const result=await Notification.requestPermission();
+  if(result==='granted'){
+    new Notification('ПВЗ Система',{body:'Уведомления включены ✅',icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📦</text></svg>'});
+  }
+  updateNotifBanner();
+};
+// Check on load (banner visible if not granted)
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', updateNotifBanner);
+} else {
+  updateNotifBanner();
+}
 function push(title,body){
-  if(Notification.permission==='granted')
-    new Notification(title,{body,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📦</text></svg>'});
+  if(!('Notification' in window)){toast(title+': '+body);return;}
+  if(Notification.permission==='granted'){
+    try{
+      new Notification(title,{body,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📦</text></svg>'});
+    }catch(e){
+      // Fallback: show in-app toast if notification fails
+      toast('🔔 '+title+': '+body);
+    }
+  } else {
+    // No permission - show in-app toast as fallback
+    toast('🔔 '+title+': '+body);
+    updateNotifBanner();
+  }
 }
 
 
