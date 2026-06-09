@@ -706,6 +706,22 @@ body{font-family:'Onest',sans-serif;background:var(--bg);color:var(--t1);min-hei
   </div>
 </div>
 
+
+<!-- CAMERA PIN OVERLAY -->
+<div class="ov" id="camPinOv" onclick="if(event.target===this)closeCamPin()">
+  <div class="modal">
+    <div class="m-h"></div>
+    <div class="m-t">📹 Просмотр камер</div>
+    <div class="m-b">
+      <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Введите PIN сотрудника на смене</div>
+      <input type="password" id="camPinInp" maxlength="6" inputmode="numeric"
+        style="width:100%;font-family:Unbounded,sans-serif;font-size:32px;font-weight:900;text-align:center;border:2px solid var(--border);border-radius:13px;padding:12px;color:var(--t1);background:var(--bg2);outline:none;letter-spacing:8px"
+        placeholder="••••" oninput="if(this.value.length>=4)submitCamPin()">
+      <div id="camPinError" style="color:var(--red);font-size:12px;margin-top:8px;min-height:18px;text-align:center"></div>
+    </div>
+  </div>
+</div>
+
 <!-- LEADERBOARD MODAL -->
 <div class="ov" id="lbOv" onclick="if(event.target===this)document.getElementById('lbOv').classList.remove('open')">
   <div class="modal" style="max-height:88vh">
@@ -1292,7 +1308,7 @@ async function loadSchedule(){
     const pct=over180?100:Math.min((cycle/180)*100,100);
     const over180Msg=over180?'<div style="margin-top:10px;padding:10px 12px;background:rgba(0,91,255,.07);border:1px solid rgba(0,91,255,.15);border-radius:12px;font-size:11px;color:var(--blue);text-align:center;line-height:1.6">🌟 Вы уже получили все возможные премии в нашей компании, но мы всё равно вас очень ценим. Мы уже разрабатываем новые премии для наших самых надёжных сотрудников — таких, как Вы! 😊</div>':'';
     // Milestone positions on track (as % of 180)
-    const msDefs=[{n:50,lbl:'Премия',bonus:5000},{n:110,lbl:'Премия',bonus:13000},{n:180,lbl:'Премия',bonus:25000}];
+    const msDefs=[{n:50,lbl:'Премия',bonus:5000},{n:110,lbl:'Премия',bonus:8000},{n:180,lbl:'Премия',bonus:12000}];
     const initials=todayE?.fullName?.split(' ').map(w=>w[0]).join('').slice(0,2)||'?';
     const empCard=document.getElementById('empCard');
     // Cache for personal account
@@ -1320,12 +1336,12 @@ async function loadSchedule(){
     if(tlWrap&&todayE){
       // Build milestone HTML — labels BELOW track, not overlapping
       const msDots=msDefs.map(m=>{
-        const on=cycle>=m.n;
+        const on=total>=m.n;// earned if total (not cycle) >= milestone
         return `<div class="tl-m">
           <div class="tl-m-dot${on?' on':''}"></div>
           <div class="tl-m-top${on?' on':''}">${m.lbl}</div>
           <div class="tl-m-num">${m.n} смен</div>
-          ${on?`<div style="font-size:9px;color:var(--blue);font-weight:600">${m.bonus.toLocaleString('ru')} ₽</div>`:''}
+          <div style="font-size:9px;font-weight:700;margin-top:2px;color:${on?'var(--blue)':'var(--t3)'};transition:color .3s">${m.bonus.toLocaleString('ru')} ₽</div>
         </div>`;
       }).join('');
       tlWrap.innerHTML=`<div class="tl">
@@ -1515,15 +1531,35 @@ window.promptCamPin=function(idx){
   if(!emp||!emp.id){toast('Сначала откройте смену');return;}
   const pin=String(emp.staffPin||'').trim();
   if(!pin){toast('У сотрудника на смене не задан PIN. Запросите у управляющих');return;}
-  const entered=prompt('Введите PIN сотрудника на смене для доступа к камерам:');
-  if(entered===null)return;
-  if(String(entered).trim()===pin){
+  // Store which camera to open after PIN
+  window._camPendingIdx=idx;
+  const inp=document.getElementById('camPinInp');
+  const err=document.getElementById('camPinError');
+  if(inp){inp.value='';inp.style.borderColor='var(--border)';}
+  if(err)err.textContent='';
+  document.getElementById('camPinOv').classList.add('open');
+  setTimeout(()=>{if(inp)inp.focus();},200);
+};
+window.submitCamPin=function(){
+  const emp=window._todayEmpData;
+  const pin=String(emp?.staffPin||'').trim();
+  const inp=document.getElementById('camPinInp');
+  const err=document.getElementById('camPinError');
+  const entered=(inp?.value||'').trim();
+  if(entered.length<4)return;
+  if(entered===pin){
     _camUnlocked=true;
+    document.getElementById('camPinOv').classList.remove('open');
     toast('🔓 Камеры разблокированы');
-    showCam(idx);
+    showCam(window._camPendingIdx||0);
   }else{
-    toast('❌ Неверный PIN');
+    if(inp){inp.value='';inp.style.borderColor='var(--red)';}
+    if(err)err.textContent='❌ Неверный PIN, попробуйте ещё раз';
+    setTimeout(()=>{if(inp){inp.style.borderColor='var(--border)';}},1500);
   }
+};
+window.closeCamPin=function(){
+  document.getElementById('camPinOv').classList.remove('open');
 };
 window.showCam=function(idx){
   if(!_camUnlocked){
@@ -2362,7 +2398,7 @@ async function openPersonalAccount(emp){
         </summary>
         ${ss.map(s=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)">
           <span>${s.date} — ${s.tabName}</span>
-          <span style="font-weight:600;color:var(--green)">${s.paid?(s.rate+' ₽ ✓'):''}</span>
+          <span style="font-weight:600;color:${s.paid?'var(--t3)':'var(--blue)'}">${s.paid?'':'+ '+s.rate+' ₽'}</span>
         </div>`).join('')}
       </details>`;
     }).join('');
