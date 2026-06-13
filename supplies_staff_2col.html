@@ -978,6 +978,18 @@ function statsAllEntered(){
 }
 function checkPreClose(){
   const now=new Date(),minsLeft=closeMins()-(now.getHours()*60+now.getMinutes());
+  // #5 Photo reminder: 5 min after shift opens
+  if(pvzMapAll[pvzId]?.photo_reminder!==false&&shiftData?.open?.time){
+    const openTime=shiftData.open.time; // 'HH:MM:SS'
+    const [oh,om]=openTime.split(':').map(Number);
+    const openMins=oh*60+om;
+    const nowMins=now.getHours()*60+now.getMinutes();
+    const today=tDay();
+    if(nowMins===openMins+5&&!_pushSent[today+'_photo']){
+      _pushSent[today+'_photo']=true;
+      push('📸 Напоминание','Не забудьте отправить два фото в чат ПВЗ: вход и клиентская зона');
+    }
+  }
   const el=document.getElementById('pcAlert'),tt=document.getElementById('pcTitle');
   const today=tDay();
   if(shiftSt()!=='open'){if(el)el.classList.remove('on');return;}
@@ -1534,7 +1546,7 @@ window.doShift=async function(type,empId,empName,empVkId){
   try{
     if(type==='open'){
       await set(ref(fdb,`${base}/open`),{time,user_id:empVkId||empId||'web_staff',username:empName||'Сотрудник',emp_id:empId});
-      await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'open_shift',user_id:empVkId||empId||'web_staff',username:empName||'Сотрудник',pvz_name:pvzName,ts:Date.now()});
+      await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'open_shift',user_id:empVkId||empId||'web_staff',username:empName||'Сотрудник',pvz_name:pvzName,emp_name:empName||'',ts:Date.now()});
     }else if(type==='close'){
       const reqMkts=pvzMarkets.filter(mktIsRequired);
       const statsOK=reqMkts.length===0||reqMkts.every(m=>{const v=shiftData[`${m}_received_count`];return v!==undefined&&v!==null&&String(v).trim()!=='';});
@@ -1778,11 +1790,25 @@ window.togSup=function(force){
   document.getElementById('supBody')?.classList.toggle('open',supOpen);
   document.getElementById('supArr')?.classList.toggle('open',supOpen);
 };
+function makeSupBtns(name,st){
+  const nn=name.replace(/'/g,"\\'");
+  const thr=(pvzCfg[name]?.low_threshold)??(globalCfg[name]?.low_threshold??3);
+  if(thr<=1){
+    return '<button class="s-sb sb-ok'+(st==='ok'?' active':'')+'" onclick="setSupplyStatus(\''+nn+'\',\'ok\')">Есть</button>'
+          +'<button class="s-sb sb-low'+(st==='low'?' active':'')+'" onclick="setSupplyStatus(\''+nn+'\',\'low\')">Нет</button>';
+  }
+  return '<button class="s-sb sb-ok'+(st==='ok'?' active':'')+'" onclick="setSupplyStatus(\''+nn+'\',\'ok\')">Много</button>'
+        +'<button class="s-sb sb-warn'+(st==='warn'?' active':'')+'" onclick="setSupplyStatus(\''+nn+'\',\'warn\')">Мало</button>'
+        +'<button class="s-sb sb-low'+(st==='low'?' active':'')+'" onclick="setSupplyStatus(\''+nn+'\',\'low\')">Нет</button>';
+}
 function buildSupList(items){
   const el=document.getElementById('supList');if(!el)return;
   if(!items.length){el.innerHTML='<div style="color:var(--t3);font-size:12px;margin-bottom:12px">Список расходников пуст</div>';return;}
-  const sorted=[...items].sort((a,b)=>{const o={low:0,warn:1,ok:2};return o[getS(a)]-o[getS(b)];});
-  el.innerHTML=sorted.map(name=>{
+  const problematic=items.filter(n=>getS(n)!=='ok');
+  const okItems=items.filter(n=>getS(n)==='ok');
+  const sorted=[...problematic.sort((a,b)=>{const o={low:0,warn:1};return o[getS(a)]-o[getS(b)];}),...okItems];
+  // Build rows
+  const makeRow=name=>{
     const inv=inventory[name]||{},q=inv.qty??0,u=inv.unit||globalCfg[name]?.unit||'шт';
     const s=getS(name),nk=CSS.escape(name),inC=!!cart[name];
     const oc=inC?'s-ob in-cart':s==='low'?'s-ob glow-r':s==='warn'?'s-ob glow-y':'s-ob idle';
@@ -1792,9 +1818,7 @@ function buildSupList(items){
       <div class="s-main"><div class="s-name">${name}</div><div class="s-st ${s}">${{low:'Нет на точке',warn:'Заканчивается',ok:''}[s]}</div></div>
       <div class="s-ctrl">
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button class="s-sb sb-ok${s==='ok'?' active':''}" onclick="setSupplyStatus('${name.replace(/'/g,"\\'")}','ok')">Много</button>
-          <button class="s-sb sb-warn${s==='warn'?' active':''}" onclick="setSupplyStatus('${name.replace(/'/g,"\\'")}','warn')">Мало</button>
-          <button class="s-sb sb-low${s==='low'?' active':''}" onclick="setSupplyStatus('${name.replace(/'/g,"\\'")}','low')">Нет</button>
+          ${makeSupBtns(name,s)}
         </div>
         <button class="${oc}" id="so-${nk}" onclick="openQty('${name.replace(/'/g,"\\'")}','${u.replace(/'/g,"\\'")}')">
           ${inC?chk:bsk}
@@ -1802,7 +1826,12 @@ function buildSupList(items){
         </button>
       </div>
     </div>`;
-  }).join('');
+  };
+  const probHtml=problematic.map(makeRow).join('');
+  const okHtml=okItems.length
+    ?'<details class="sup-ok-acc" style="margin-top:10px"><summary style="cursor:pointer;font-size:11px;color:var(--t3);padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px"><span style="border-radius:50%;width:6px;height:6px;background:var(--green);display:inline-block"></span>В норме ('+okItems.length+' позиций) — нажмите чтобы раскрыть</summary>'+okItems.map(makeRow).join('')+'</details>'
+    :'';
+  el.innerHTML=probHtml+okHtml;
 }
 function updateQtys(){
   const items=Object.keys(globalCfg).filter(n=>!pvzCfg[n]||pvzCfg[n].enabled!==false);
@@ -1932,11 +1961,13 @@ function renderBanners(){
   el.innerHTML=`<div class="sec" style="overflow:hidden">
     <div class="bnr-wrap" id="bnrWrap">
       <div class="bnr-track" id="bnrTrack">
-        ${_visibleBanners.map((b,i)=>`<div class="bnr-slide" onclick="openBnrPopup(${i})">
+        ${_visibleBanners.map((b,i)=>`<div class="bnr-slide" onclick="bnrSlideClick(event,${i})">
           <img class="bnr-img" src="${b.image_url}" alt="" onerror="this.parentElement.innerHTML='<div class=bnr-ph>🖼️ Изображение недоступно</div>'">
         </div>`).join('')}
       </div>
-      <div class="bnr-dots" id="bnrDots">${banners.map((_,i)=>`<div class="bnr-dot${i===0?' on':''}" id="bd-${i}"></div>`).join('')}</div>
+      <button class="bnr-arrow bnr-prev" onclick="bnrPrev();resetBnr()">&#8249;</button>
+      <button class="bnr-arrow bnr-next" onclick="bnrNext();resetBnr()">&#8250;</button>
+      <div class="bnr-dots" id="bnrDots">${_visibleBanners.map((_,i)=>`<button class="bnr-dot${i===0?' on':''}" id="bd-${i}" onclick="bnrGo(${i});resetBnr()"></button>`).join('')}</div>
       <div class="bnr-prog" id="bnrProg" style="width:0%;transition:width .1s linear"></div>
     </div>
   </div>`;
@@ -1944,6 +1975,13 @@ function renderBanners(){
   bWrap.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;},{passive:true});
   bWrap.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-tx;if(Math.abs(dx)>40){dx<0?bnrNext():bnrPrev();resetBnr();}},{passive:true});
   resetBnr();
+}
+function bnrSlideClick(e,i){
+  const rect=e.currentTarget.getBoundingClientRect();
+  const pct=(e.clientX-rect.left)/rect.width;
+  if(pct<0.25){bnrPrev();resetBnr();}
+  else if(pct>0.75){bnrNext();resetBnr();}
+  else{openBnrPopup(i);}
 }
 function bnrGo(i){const bl=_visibleBanners.length||1;bnrIdx=((i%bl)+bl)%bl;const t=document.getElementById('bnrTrack');if(t)t.style.transform=`translateX(-${bnrIdx*100}%)`;document.querySelectorAll('.bnr-dot').forEach((d,j)=>d.classList.toggle('on',j===bnrIdx));}
 function bnrNext(){bnrGo(bnrIdx+1);}function bnrPrev(){bnrGo(bnrIdx-1);}
@@ -2359,11 +2397,15 @@ window.changePinFlow=function(){
   const np=prompt('Введите новый 4-значный пароль:');
   if(!np||!/^\d{4}$/.test(np)){alert('Пароль должен быть ровно 4 цифры');return;}
   const emps_raw=window._allEmpsCache||[];
-  const emp=emps_raw.find(e=>e?.id===_lkEmpId);
-  if(!emp)return;
-  set(ref(fdb,`/appData/employees`),emps_raw.map(e=>e.id===_lkEmpId?{...e,staffPin:np}:e))
-    .then(()=>toast('Пароль изменён'))
-    .catch(()=>toast('Ошибка сохранения'));
+  const empIdx=emps_raw.findIndex(e=>e?.id===_lkEmpId);
+  if(empIdx<0){toast('Сотрудник не найден');return;}
+  // Write only the staffPin field for this employee's index path
+  set(ref(fdb,`/appData/employees/${empIdx}/staffPin`),np)
+    .then(()=>{
+      if(emps_raw[empIdx])emps_raw[empIdx].staffPin=np;
+      toast('✅ Пароль изменён');
+    })
+    .catch(e=>toast('Ошибка: '+e.message));
 };
 
 async function openPersonalAccount(emp){
@@ -2561,6 +2603,24 @@ window.saveChartEdit=async function(){
 window.closeChartEdit=function(){document.getElementById('chartEditOv').classList.remove('open');};
 </script>
 <div id="updateBanner" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--blue);color:#fff;padding:10px 18px;border-radius:12px;font-size:12px;font-weight:600;cursor:pointer;z-index:200;box-shadow:0 4px 20px rgba(0,91,255,.4)" onclick="location.reload()">🔄 Доступно обновление — нажмите для обновления</div>
-<div style="text-align:center;padding:6px;font-size:10px;color:var(--t3);background:var(--card2);border-top:1px solid var(--border)">ПВЗ Система · <span id="appVerTxt">v1.3.1</span></div>
+<div style="text-align:center;padding:6px;font-size:10px;color:var(--t3);background:var(--card2);border-top:1px solid var(--border)">ПВЗ Система · <span id="appVerTxt" onclick="document.getElementById('chungaOv').classList.add('open')" style="cursor:pointer;text-decoration:underline dotted">v1.4.1</span></div>
+
+<!-- CHUNGA-CHANGA MODAL -->
+<div class="ov" id="chungaOv" onclick="if(event.target===this)document.getElementById('chungaOv').classList.remove('open')">
+  <div class="modal" style="text-align:center">
+    <div class="m-h"></div>
+    <div style="font-size:48px;margin:12px 0">🌴</div>
+    <div class="m-t">Чунга-Чанга</div>
+    <div class="m-b">
+      <div style="color:var(--t2);font-size:13px;margin-bottom:20px">ПВЗ система · v1.4.1</div>
+      <button onclick="window.open('battleship.html','_blank')" style="width:100%;padding:14px;border-radius:13px;border:none;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-family:Onest,sans-serif;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px">
+        🚢 Чунга-Чанга: Морской бой
+      </button>
+      <button onclick="document.getElementById('chungaOv').classList.remove('open')" style="width:100%;padding:12px;border-radius:13px;border:1px solid var(--border);background:var(--bg2);color:var(--t1);font-family:Onest,sans-serif;font-size:14px;font-weight:600;cursor:pointer">
+        Закрыть
+      </button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
