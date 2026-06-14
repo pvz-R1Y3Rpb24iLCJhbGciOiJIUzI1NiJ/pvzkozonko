@@ -1615,55 +1615,60 @@ async function loadWeather(){
   if(sec)sec.style.display='';
   document.getElementById('weatherCity').textContent='· '+cfg.city;
   try{
-    const geo=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cfg.city)}&count=1&language=ru`).then(r=>r.json());
-    if(!geo.results||!geo.results.length){document.getElementById('weatherBody').textContent='Город не найден';return;}
-    const {latitude,longitude}=geo.results[0];
-    const w=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,weather_code,precipitation_probability&timezone=auto&forecast_days=1`).then(r=>r.json());
-    const codes={0:['☀️','Ясно'],1:['🌤️','Малооблачно'],2:['⛅','Облачно'],3:['☁️','Пасмурно'],45:['🌫️','Туман'],48:['🌫️','Изморозь'],51:['🌦️','Морось'],53:['🌦️','Морось'],55:['🌧️','Морось'],61:['🌧️','Дождь'],63:['🌧️','Дождь'],65:['🌧️','Ливень'],71:['🌨️','Снег'],73:['🌨️','Снег'],75:['❄️','Снегопад'],80:['🌦️','Ливни'],81:['🌧️','Ливни'],82:['⛈️','Сильный ливень'],95:['⛈️','Гроза']};
-    const h=w.hourly;
-    // Periods: morning 6-11, day 12-17, evening 18-22 (use representative hour)
-    const periods=[
-      {name:'Утро',hours:[6,7,8,9,10,11],icon:'🌅'},
-      {name:'День',hours:[12,13,14,15,16,17],icon:'☀️'},
-      {name:'Вечер',hours:[18,19,20,21,22],icon:'🌆'}
-    ];
-    const periodData=periods.map(p=>{
-      const temps=p.hours.map(hr=>h.temperature_2m[hr]).filter(t=>t!=null);
-      const avgTemp=temps.length?Math.round(temps.reduce((a,b)=>a+b,0)/temps.length):null;
-      const wcodes=p.hours.map(hr=>h.weather_code[hr]).filter(c=>c!=null);
-      const wcode=wcodes.length?wcodes.sort((a,b)=>wcodes.filter(v=>v===a).length-wcodes.filter(v=>v===b).length).pop():0;
-      const precips=p.hours.map(hr=>h.precipitation_probability?.[hr]).filter(x=>x!=null);
-      const maxPrecip=precips.length?Math.max(...precips):0;
-      return {...p,avgTemp,wcode,maxPrecip};
-    });
-    // Overall sky description for the day
-    const allCodes=h.weather_code.slice(6,23);
-    const rainy=allCodes.some(c=>c>=51&&c<=82);
-    const snowy=allCodes.some(c=>c>=71&&c<=75);
-    const clear=allCodes.filter(c=>c<=1).length>allCodes.length/2;
-    const maxPrecipDay=Math.max(...(h.precipitation_probability||[0]).slice(6,23).filter(x=>x!=null),0);
+    // wttr.in — работает в РФ, без ключа, JSON формат
+    const r=await fetch(`https://wttr.in/${encodeURIComponent(cfg.city)}?format=j1&lang=ru`);
+    if(!r.ok)throw new Error('wttr');
+    const w=await r.json();
+    const today=w.weather&&w.weather[0];
+    if(!today){document.getElementById('weatherBody').textContent='Нет данных';return;}
+    const hourly=today.hourly||[];
+    // wttr hourly: time '0','300','600'... '2100' (часы*100). Берём представителей.
+    const pick=h=>hourly.find(x=>parseInt(x.time)===h)||hourly.reduce((best,x)=>Math.abs(parseInt(x.time)-h)<Math.abs(parseInt(best.time)-h)?x:best,hourly[0]);
+    // Иконки по weatherCode (WWO codes)
+    const iconFor=(code,desc)=>{
+      code=parseInt(code);
+      const d=(desc||'').toLowerCase();
+      if(d.includes('гроз')||[386,389,392,395].includes(code))return '⛈️';
+      if(d.includes('снег')||d.includes('snow')||[179,182,185,227,230,323,326,329,332,335,338,368,371].includes(code))return '🌨️';
+      if(d.includes('дожд')||d.includes('ливн')||d.includes('rain')||[176,263,266,281,284,293,296,299,302,305,308,311,353,356,359,362,365].includes(code))return '🌧️';
+      if(d.includes('туман')||d.includes('fog')||d.includes('mist')||[143,248,260].includes(code))return '🌫️';
+      if(d.includes('ясно')||d.includes('sun')||d.includes('clear')||code===113)return '☀️';
+      if(d.includes('малооблач')||d.includes('переменная')||[116].includes(code))return '🌤️';
+      if(d.includes('пасмурно')||d.includes('overcast')||[122].includes(code))return '☁️';
+      return '⛅';
+    };
+    const periods=[{name:'Утро',h:900},{name:'День',h:1500},{name:'Вечер',h:1800}];
+    // Determine overall sky for the day
+    const allDesc=hourly.map(x=>(x.lang_ru&&x.lang_ru[0]?.value||x.weatherDesc&&x.weatherDesc[0]?.value||'')).join(' ').toLowerCase();
+    const maxRain=Math.max(...hourly.map(x=>parseInt(x.chanceofrain||0)),0);
+    const maxSnow=Math.max(...hourly.map(x=>parseInt(x.chanceofsnow||0)),0);
     let skyDesc='';
-    if(snowy)skyDesc='❄️ Сегодня ожидается снег';
-    else if(rainy)skyDesc='🌧️ Сегодня ожидаются осадки';
-    else if(clear)skyDesc='☀️ Сегодня будет ясный день';
+    if(maxSnow>=40||allDesc.includes('снег'))skyDesc='❄️ Сегодня ожидается снег';
+    else if(maxRain>=40||allDesc.includes('дожд')||allDesc.includes('ливн'))skyDesc='🌧️ Сегодня ожидаются осадки';
+    else if(allDesc.includes('ясно')&&!allDesc.includes('облач'))skyDesc='☀️ Сегодня будет ясный день';
     else skyDesc='⛅ Сегодня переменная облачность';
-    if(maxPrecipDay>=30&&!rainy&&!snowy)skyDesc+=` · вероятность осадков ${maxPrecipDay}%`;
+    const maxPrecip=Math.max(maxRain,maxSnow);
+    if(maxPrecip>=25&&!skyDesc.includes('осадк')&&!skyDesc.includes('снег'))skyDesc+=` · вероятность осадков ${maxPrecip}%`;
     let html=`<div style="font-size:12px;font-weight:700;color:#2563EB;margin-bottom:8px">${skyDesc}</div>`;
-    html+='<div style="display:flex;gap:8px">';
-    periodData.forEach(p=>{
-      const [icon,desc]=codes[p.wcode]||['—',''];
+    html+='<div style="display:flex;gap:6px">';
+    periods.forEach(p=>{
+      const hr=pick(p.h);if(!hr)return;
+      const desc=hr.lang_ru&&hr.lang_ru[0]?.value||hr.weatherDesc&&hr.weatherDesc[0]?.value||'';
+      const icon=iconFor(hr.weatherCode,desc);
+      const temp=Math.round(parseFloat(hr.tempC));
+      const precip=Math.max(parseInt(hr.chanceofrain||0),parseInt(hr.chanceofsnow||0));
       html+=`<div style="flex:1;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:10px;padding:7px 6px;text-align:center">
         <div style="font-size:10px;color:#3b82f6;font-weight:700;margin-bottom:2px">${p.name}</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:5px">
           <span style="font-size:18px;line-height:1">${icon}</span>
-          <span style="font-size:16px;font-weight:800;color:#1e40af">${p.avgTemp!=null?p.avgTemp+'°':'—'}</span>
+          <span style="font-size:16px;font-weight:800;color:#1e40af">${temp}°</span>
         </div>
-        <div style="font-size:9px;color:#60a5fa;margin-top:2px">${desc}${p.maxPrecip>=20?` · 💧${p.maxPrecip}%`:''}</div>
+        <div style="font-size:9px;color:#60a5fa;margin-top:2px">${desc}${precip>=20?` · 💧${precip}%`:''}</div>
       </div>`;
     });
     html+='</div>';
     document.getElementById('weatherBody').innerHTML=html;
-  }catch(e){document.getElementById('weatherBody').textContent='Не удалось загрузить погоду';}
+  }catch(e){document.getElementById('weatherBody').innerHTML='<div style="font-size:12px;color:#60a5fa">Не удалось загрузить погоду</div>';}
 }
 
 function buildCameras(){
