@@ -1611,62 +1611,31 @@ let _lkEmpId=null;
 async function loadWeather(){
   const sec=document.getElementById('weatherSec');
   const cfg=pvzMapAll[pvzId]||{};
-  if(cfg.weather_enabled===false||!cfg.city){if(sec)sec.style.display='none';return;}
+  if(cfg.weather_enabled===false){if(sec)sec.style.display='none';return;}
   if(sec)sec.style.display='';
-  document.getElementById('weatherCity').textContent='· '+cfg.city;
+  document.getElementById('weatherCity').textContent=cfg.city?'· '+cfg.city:'';
   try{
-    // wttr.in — работает в РФ, без ключа, JSON формат
-    const r=await fetch(`https://wttr.in/${encodeURIComponent(cfg.city)}?format=j1&lang=ru`);
-    if(!r.ok)throw new Error('wttr');
-    const w=await r.json();
-    const today=w.weather&&w.weather[0];
-    if(!today){document.getElementById('weatherBody').textContent='Нет данных';return;}
-    const hourly=today.hourly||[];
-    // wttr hourly: time '0','300','600'... '2100' (часы*100). Берём представителей.
-    const pick=h=>hourly.find(x=>parseInt(x.time)===h)||hourly.reduce((best,x)=>Math.abs(parseInt(x.time)-h)<Math.abs(parseInt(best.time)-h)?x:best,hourly[0]);
-    // Иконки по weatherCode (WWO codes)
-    const iconFor=(code,desc)=>{
-      code=parseInt(code);
-      const d=(desc||'').toLowerCase();
-      if(d.includes('гроз')||[386,389,392,395].includes(code))return '⛈️';
-      if(d.includes('снег')||d.includes('snow')||[179,182,185,227,230,323,326,329,332,335,338,368,371].includes(code))return '🌨️';
-      if(d.includes('дожд')||d.includes('ливн')||d.includes('rain')||[176,263,266,281,284,293,296,299,302,305,308,311,353,356,359,362,365].includes(code))return '🌧️';
-      if(d.includes('туман')||d.includes('fog')||d.includes('mist')||[143,248,260].includes(code))return '🌫️';
-      if(d.includes('ясно')||d.includes('sun')||d.includes('clear')||code===113)return '☀️';
-      if(d.includes('малооблач')||d.includes('переменная')||[116].includes(code))return '🌤️';
-      if(d.includes('пасмурно')||d.includes('overcast')||[122].includes(code))return '☁️';
-      return '⛅';
-    };
-    const periods=[{name:'Утро',h:900},{name:'День',h:1500},{name:'Вечер',h:1800}];
-    // Determine overall sky for the day
-    const allDesc=hourly.map(x=>(x.lang_ru&&x.lang_ru[0]?.value||x.weatherDesc&&x.weatherDesc[0]?.value||'')).join(' ').toLowerCase();
-    const maxRain=Math.max(...hourly.map(x=>parseInt(x.chanceofrain||0)),0);
-    const maxSnow=Math.max(...hourly.map(x=>parseInt(x.chanceofsnow||0)),0);
-    let skyDesc='';
-    if(maxSnow>=40||allDesc.includes('снег'))skyDesc='❄️ Сегодня ожидается снег';
-    else if(maxRain>=40||allDesc.includes('дожд')||allDesc.includes('ливн'))skyDesc='🌧️ Сегодня ожидаются осадки';
-    else if(allDesc.includes('ясно')&&!allDesc.includes('облач'))skyDesc='☀️ Сегодня будет ясный день';
-    else skyDesc='⛅ Сегодня переменная облачность';
-    const maxPrecip=Math.max(maxRain,maxSnow);
-    if(maxPrecip>=25&&!skyDesc.includes('осадк')&&!skyDesc.includes('снег'))skyDesc+=` · вероятность осадков ${maxPrecip}%`;
-    let html=`<div style="font-size:12px;font-weight:700;color:#2563EB;margin-bottom:8px">${skyDesc}</div>`;
+    // Читаем ПРЕДВЫЧИСЛЕННУЮ погоду из Firebase (её обновляет бот через Яндекс.Погода API)
+    const snap=await get(ref(fdb,`/supplies/weather/${pvzId}`));
+    const w=snap.val();
+    if(!w||!w.periods){
+      document.getElementById('weatherBody').innerHTML='<div style="font-size:12px;color:#60a5fa">Погода ещё не загружена. Укажите координаты ПВЗ и ключ Яндекс.Погоды в админке.</div>';
+      return;
+    }
+    let html=`<div style="font-size:12px;font-weight:700;color:#2563EB;margin-bottom:8px">${w.skyDesc||''}</div>`;
     html+='<div style="display:flex;gap:6px">';
-    periods.forEach(p=>{
-      const hr=pick(p.h);if(!hr)return;
-      const desc=hr.lang_ru&&hr.lang_ru[0]?.value||hr.weatherDesc&&hr.weatherDesc[0]?.value||'';
-      const icon=iconFor(hr.weatherCode,desc);
-      const temp=Math.round(parseFloat(hr.tempC));
-      const precip=Math.max(parseInt(hr.chanceofrain||0),parseInt(hr.chanceofsnow||0));
+    (w.periods||[]).forEach(p=>{
       html+=`<div style="flex:1;background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:10px;padding:7px 6px;text-align:center">
         <div style="font-size:10px;color:#3b82f6;font-weight:700;margin-bottom:2px">${p.name}</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:5px">
-          <span style="font-size:18px;line-height:1">${icon}</span>
-          <span style="font-size:16px;font-weight:800;color:#1e40af">${temp}°</span>
+          <span style="font-size:18px;line-height:1">${p.icon}</span>
+          <span style="font-size:16px;font-weight:800;color:#1e40af">${p.temp}°</span>
         </div>
-        <div style="font-size:9px;color:#60a5fa;margin-top:2px">${desc}${precip>=20?` · 💧${precip}%`:''}</div>
+        <div style="font-size:9px;color:#60a5fa;margin-top:2px">${p.desc||''}${p.precip>=20?` · 💧${p.precip}%`:''}</div>
       </div>`;
     });
     html+='</div>';
+    if(w.updated)html+=`<div style="font-size:9px;color:#93c5fd;margin-top:6px;text-align:right">обновлено ${w.updated}</div>`;
     document.getElementById('weatherBody').innerHTML=html;
   }catch(e){document.getElementById('weatherBody').innerHTML='<div style="font-size:12px;color:#60a5fa">Не удалось загрузить погоду</div>';}
 }
