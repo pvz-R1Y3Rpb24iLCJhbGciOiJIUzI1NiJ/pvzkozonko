@@ -364,8 +364,18 @@ body{font-family:'Onest',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .bnr-ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
   color:var(--t3);font-size:13px;font-family:'Onest',sans-serif}
 .bnr-dots{position:absolute;bottom:10px;right:12px;display:flex;gap:5px;z-index:2}
-.bnr-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5);transition:all .25s}
-.bnr-dot.on{width:16px;border-radius:3px;background:#fff}
+.bnr-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.5);transition:all .25s;border:none;padding:0;cursor:pointer}
+.bnr-dot.on{width:18px;border-radius:4px;background:#fff}
+.sup-ok-compact{display:flex;flex-direction:column;gap:3px}
+.s-item-mini{display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--bg2);border-radius:8px;font-size:12px}
+.s-name-mini{color:var(--t2);font-weight:600;font-size:12px}
+.s-item-mini .s-sb{padding:3px 7px;font-size:10px}
+.s-ob-mini{width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--t2);cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.s-ob-mini.in-cart{background:var(--green);color:#fff;border-color:var(--green)}
+.bnr-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.55);color:#fff;border:2px solid rgba(255,255,255,.7);border-radius:50%;width:38px;height:38px;font-size:22px;line-height:1;cursor:pointer;z-index:5;opacity:.85;transition:all .2s;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.bnr-arrow:hover{background:rgba(0,0,0,.85);opacity:1;transform:translateY(-50%) scale(1.1)}
+.bnr-arrow:active{transform:translateY(-50%) scale(.95)}
+.bnr-prev{left:10px}.bnr-next{right:10px}
 .bnr-prog{position:absolute;bottom:0;left:0;height:3px;background:rgba(255,255,255,.65);z-index:3;border-radius:0 2px 0 0}
 
 /* ─── CART ─── */
@@ -742,6 +752,7 @@ body{font-family:'Onest',sans-serif;background:var(--bg);color:var(--t1);min-hei
   <div class="modal" style="max-height:88vh">
     <div class="m-h"></div>
     <div class="m-t">🏆 Доска почёта</div>
+    <div style="text-align:center;font-size:11px;color:var(--t3);margin-top:2px">Число справа — количество отработанных смен</div>
     <div class="m-b" id="lbContent" style="padding-top:10px">
       <div class="loading"><span class="ld">●</span></div>
     </div>
@@ -1229,6 +1240,10 @@ function buildPage(){
           </div>
         </div>
       </div>
+      <div class="sec" id="weatherSec" style="display:none">
+        <div class="sec-h"><div class="sec-ico" style="background:linear-gradient(135deg,#60a5fa,#3b82f6)">🌤️</div><div class="sec-title">Погода <span id="weatherCity" style="color:var(--t3);font-weight:500"></span></div></div>
+        <div class="sec-body"><div id="weatherBody" style="font-size:13px;color:var(--t2)">Загрузка…</div></div>
+      </div>
       <div class="sec">
         <div class="sec-h"><div class="sec-ico si-gray">📹</div><div class="sec-title">Видеонаблюдение</div></div>
         <div class="sec-body"><div class="cam-grid" id="camGrid"></div></div>
@@ -1259,6 +1274,7 @@ function buildPage(){
   buildMktInputs();
   buildPeriodPills();
   buildCameras();
+  loadWeather();
   applyScheduleBtnState();// re-apply since mainContent was rebuilt
   buildSupplies(items);
   updateShiftUI();
@@ -1390,6 +1406,11 @@ async function loadSchedule(){
       const avatarHtml=todayE.avatarUrl
         ?`<div class="emp-av" style="background:none;padding:0;overflow:hidden"><img src="${todayE.avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`
         :`<div class="emp-av">${initials}</div>`;
+      const adj=todayE?.manualShiftAdjustment||0;
+      const adjReason=todayE?.adjustReason||'';
+      const adjHtml=adj?`<div style="margin-top:8px;padding:8px 12px;background:rgba(16,163,74,.08);border:1px solid rgba(16,163,74,.2);border-radius:10px;font-size:11px;color:var(--green);line-height:1.5">
+        <b>Добавленный модификатор: ${adj>0?'+':''}${adj} ${shiftWord(Math.abs(adj))}</b>${adjReason?'<br><span style="color:var(--t2)">За что: '+adjReason+'</span>':''}
+      </div>`:'';
       empCard.innerHTML=`<div class="emp-row">
         ${avatarHtml}
         <div>
@@ -1398,9 +1419,10 @@ async function loadSchedule(){
         </div>
         <div class="emp-r">
           <div class="emp-cnt">${total}</div>
-          <div class="emp-lbl">смен</div>
+          <div class="emp-lbl">смен всего</div>
         </div>
       </div>
+      ${adjHtml}
       <button onclick="openLkPin()" style="width:100%;padding:9px 12px;background:var(--grad-s,rgba(0,91,255,.06));border:1.5px solid var(--border);border-radius:11px;font-family:'Onest',sans-serif;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px">
         🔐 Открыть личный кабинет
       </button>`;
@@ -1577,7 +1599,51 @@ window.doShift=async function(type,empId,empName,empVkId){
 
 // ── CAMERAS ──
 let _camsData=[];
+function shiftWord(n){
+  const a=Math.abs(n)%100,b=n%10;
+  if(a>10&&a<20)return 'смен';
+  if(b>1&&b<5)return 'смены';
+  if(b===1)return 'смена';
+  return 'смен';
+}
+
 let _lkEmpId=null;
+
+// ── WEATHER (#7) ──
+async function loadWeather(){
+  const sec=document.getElementById('weatherSec');
+  const cfg=pvzMapAll[pvzId]||{};
+  // Disabled or no city -> hide
+  if(cfg.weather_enabled===false||!cfg.city){if(sec)sec.style.display='none';return;}
+  if(sec)sec.style.display='';
+  document.getElementById('weatherCity').textContent='· '+cfg.city;
+  try{
+    // Geocode city -> lat/lon via open-meteo geocoding
+    const geo=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cfg.city)}&count=1&language=ru`).then(r=>r.json());
+    if(!geo.results||!geo.results.length){document.getElementById('weatherBody').textContent='Город не найден';return;}
+    const {latitude,longitude}=geo.results[0];
+    const w=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto&forecast_days=3`).then(r=>r.json());
+    const codes={0:'☀️ Ясно',1:'🌤️ В основном ясно',2:'⛅ Переменная облачность',3:'☁️ Пасмурно',45:'🌫️ Туман',48:'🌫️ Изморозь',51:'🌦️ Морось',53:'🌦️ Морось',55:'🌧️ Морось',61:'🌧️ Дождь',63:'🌧️ Дождь',65:'🌧️ Ливень',71:'🌨️ Снег',73:'🌨️ Снег',75:'❄️ Снегопад',80:'🌦️ Ливни',81:'🌧️ Ливни',82:'⛈️ Сильный ливень',95:'⛈️ Гроза'};
+    const cur=w.current,d=w.daily;
+    const dayNames=['Сегодня','Завтра','Послезавтра'];
+    let html=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div style="font-size:32px;font-weight:800;color:var(--t1)">${Math.round(cur.temperature_2m)}°</div>
+      <div><div style="font-size:13px;color:var(--t1)">${codes[cur.weather_code]||'—'}</div>
+      <div style="font-size:11px;color:var(--t3)">Ветер ${Math.round(cur.wind_speed_10m)} км/ч</div></div>
+    </div>`;
+    html+='<div style="display:flex;gap:8px">';
+    for(let i=0;i<3;i++){
+      html+=`<div style="flex:1;background:var(--bg2);border-radius:10px;padding:8px;text-align:center">
+        <div style="font-size:10px;color:var(--t3);margin-bottom:4px">${dayNames[i]}</div>
+        <div style="font-size:18px">${(codes[d.weather_code[i]]||'').split(' ')[0]}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--t1);margin-top:2px">${Math.round(d.temperature_2m_max[i])}°<span style="color:var(--t3);font-weight:400">/${Math.round(d.temperature_2m_min[i])}°</span></div>
+      </div>`;
+    }
+    html+='</div>';
+    document.getElementById('weatherBody').innerHTML=html;
+  }catch(e){document.getElementById('weatherBody').textContent='Не удалось загрузить погоду';}
+}
+
 function buildCameras(){
   const defaults=[
     {id:'c1',name:'Камера 1',zone:'Вход и зона ожидания',status:'unknown',ico:'📹',photo:''},
@@ -1827,9 +1893,22 @@ function buildSupList(items){
       </div>
     </div>`;
   };
+  // Compact row for items that are OK — smaller but readable
+  const makeRowCompact=name=>{
+    const u=(inventory[name]||{}).unit||globalCfg[name]?.unit||'шт';
+    const inC=!!cart[name];
+    return `<div class="s-item-mini">
+      <span class="s-name-mini">${name}</span>
+      <div style="display:flex;gap:4px;align-items:center">
+        ${makeSupBtns(name,'ok')}
+        <button class="s-ob-mini${inC?' in-cart':''}" onclick="openQty('${name.replace(/'/g,"\\'")}','${u.replace(/'/g,"\\'")}')" title="заказать">${inC?'✓':'+'}</button>
+      </div>
+    </div>`;
+  };
   const probHtml=problematic.map(makeRow).join('');
   const okHtml=okItems.length
-    ?'<details class="sup-ok-acc" style="margin-top:10px"><summary style="cursor:pointer;font-size:11px;color:var(--t3);padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px"><span style="border-radius:50%;width:6px;height:6px;background:var(--green);display:inline-block"></span>В норме ('+okItems.length+' позиций) — нажмите чтобы раскрыть</summary>'+okItems.map(makeRow).join('')+'</details>'
+    ?'<div style="margin-top:12px;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;padding:4px 2px">В норме</div>'
+     +'<div class="sup-ok-compact">'+okItems.map(makeRowCompact).join('')+'</div>'
     :'';
   el.innerHTML=probHtml+okHtml;
 }
@@ -1993,11 +2072,13 @@ function resetBnr(){
 }
 window.openBnrPopup=function(i){
   const b=_visibleBanners[i]||banners[i];if(!b)return;
-  document.getElementById('bnrPopupImg').src=b.image_url||'';
+  const img=document.getElementById('bnrPopupImg');
+  img.src=b.image_url||'';
+  img.style.display=b.image_url?'block':'none';
   const capEl=document.getElementById('bnrPopupCaption');
   if(capEl){
-    capEl.textContent=b.caption||'';
-    capEl.style.display=b.caption?'block':'none';
+    capEl.textContent=b.caption||b.text||b.title||'';
+    capEl.style.display=(b.caption||b.text||b.title)?'block':'none';
   }
   document.getElementById('bnrOv').classList.add('open');
 };
@@ -2311,8 +2392,8 @@ window.openLeaderboard=async function(){
       const stars=e.total>180?3:e.total>110?2:e.total>50?1:0;
       const initials=(e.fullName||e.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2);
       const isTop=i<5;
-      const avSz=isTop?(i<3?'54px':'44px'):'34px';
-      const avFont=isTop?(i<3?'18px':'14px'):'12px';
+      const avSz=isTop?(i<3?'70px':'56px'):'46px';
+      const avFont=isTop?(i<3?'24px':'18px'):'15px';
       const avatarHtml=e.avatarUrl
         ?`<img src="${e.avatarUrl}" style="width:${avSz};height:${avSz};border-radius:50%;object-fit:cover;flex-shrink:0;border:${i<3?'2px solid var(--blue)':'none'}">`
         :`<div style="width:${avSz};height:${avSz};background:var(--grad);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Unbounded,sans-serif;font-size:${avFont};font-weight:900;color:#fff;flex-shrink:0;border:${i<3?'2px solid var(--blue)':'none'}">${initials}</div>`;
@@ -2325,7 +2406,10 @@ window.openLeaderboard=async function(){
           <div style="font-weight:700;font-size:${isTop?'14px':'13px'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.fullName||e.name||'?'}</div>
           <div style="font-size:10px;color:var(--t3)">${'★'.repeat(stars)||''}${firstStr?' · '+firstStr:''}</div>
         </div>
-        <div style="font-family:Unbounded,sans-serif;font-size:${isTop?'20px':'16px'};font-weight:900;color:var(--blue);letter-spacing:-.5px">${e.total}</div>
+        <div style="text-align:center;flex-shrink:0">
+          <div style="font-family:Unbounded,sans-serif;font-size:${isTop?'22px':'17px'};font-weight:900;color:var(--blue);letter-spacing:-.5px;line-height:1">${e.total}</div>
+          <div style="font-size:9px;color:var(--t3);font-weight:600;margin-top:1px">${shiftWord(e.total)}</div>
+        </div>
       </div>`;
     }).join('')||'<div style="color:var(--t3)">Нет данных</div>';
   }catch(e){
@@ -2334,23 +2418,64 @@ window.openLeaderboard=async function(){
 };
 
 // ── AVATAR UPLOAD IN PERSONAL ACCOUNT ──────────────────────────────────────
-window.uploadLkAvatar=async function(input){
+let _cropImg=null,_cropScale=1,_cropX=0,_cropY=0,_cropDrag=false,_cropStart=null;
+window.uploadLkAvatar=function(input){
   const file=input.files[0];if(!file||!_lkEmpId)return;
   const reader=new FileReader();
-  reader.onload=async e=>{
-    let data=e.target.result;
-    if(file.size>300*1024){
-      const canvas=document.createElement('canvas'),img=new Image();
-      img.onload=async()=>{
-        const SZ=200;let w=img.width,h=img.height;
-        if(w>h){h=h*SZ/w;w=SZ;}else{w=w*SZ/h;h=SZ;}
-        canvas.width=w;canvas.height=h;
-        canvas.getContext('2d').drawImage(img,0,0,w,h);
-        const comp=canvas.toDataURL('image/jpeg',.8);
-        await saveLkAvatar(comp);
-      };img.src=data;
-    }else await saveLkAvatar(data);
-  };reader.readAsDataURL(file);
+  reader.onload=e=>{
+    _cropImg=new Image();
+    _cropImg.onload=()=>{openCropModal();};
+    _cropImg.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+};
+function openCropModal(){
+  _cropScale=1;_cropX=0;_cropY=0;
+  document.getElementById('cropOv').classList.add('open');
+  // Fit image: scale so smaller dimension fills the 240px crop box
+  const box=240;
+  const minScale=Math.max(box/_cropImg.width,box/_cropImg.height);
+  _cropScale=minScale;
+  // Center
+  _cropX=(box-_cropImg.width*_cropScale)/2;
+  _cropY=(box-_cropImg.height*_cropScale)/2;
+  drawCrop();
+}
+function drawCrop(){
+  const cv=document.getElementById('cropCanvas');if(!cv||!_cropImg)return;
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,240,240);
+  ctx.save();
+  ctx.beginPath();ctx.arc(120,120,120,0,Math.PI*2);ctx.clip();
+  ctx.drawImage(_cropImg,_cropX,_cropY,_cropImg.width*_cropScale,_cropImg.height*_cropScale);
+  ctx.restore();
+  // circle outline
+  ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(120,120,119,0,Math.PI*2);ctx.stroke();
+}
+window.cropZoom=function(delta){
+  const box=240,cx=120,cy=120;
+  const oldScale=_cropScale;
+  _cropScale=Math.max(box/Math.max(_cropImg.width,_cropImg.height),Math.min(5,_cropScale+delta));
+  // zoom toward center
+  _cropX=cx-(cx-_cropX)*(_cropScale/oldScale);
+  _cropY=cy-(cy-_cropY)*(_cropScale/oldScale);
+  drawCrop();
+};
+function cropDragStart(e){_cropDrag=true;const p=e.touches?e.touches[0]:e;_cropStart={x:p.clientX-_cropX,y:p.clientY-_cropY};}
+function cropDragMove(e){if(!_cropDrag)return;const p=e.touches?e.touches[0]:e;_cropX=p.clientX-_cropStart.x;_cropY=p.clientY-_cropStart.y;drawCrop();e.preventDefault();}
+function cropDragEnd(){_cropDrag=false;}
+window.closeCrop=function(){document.getElementById('cropOv').classList.remove('open');_cropImg=null;};
+window.applyCrop=async function(){
+  // Render the cropped circle to a 200x200 output
+  const out=document.createElement('canvas');out.width=200;out.height=200;
+  const ctx=out.getContext('2d');
+  const ratio=200/240;
+  ctx.drawImage(_cropImg,_cropX*ratio,_cropY*ratio,_cropImg.width*_cropScale*ratio,_cropImg.height*_cropScale*ratio);
+  const data=out.toDataURL('image/jpeg',.85);
+  closeCrop();
+  await saveLkAvatar(data);
 };
 async function saveLkAvatar(data){
   if(!_lkEmpId)return;
@@ -2394,18 +2519,32 @@ window.submitPin=async function(){
   }catch(e){document.getElementById('pinError').textContent='Ошибка: '+e.message;}
 };
 window.changePinFlow=function(){
-  const np=prompt('Введите новый 4-значный пароль:');
-  if(!np||!/^\d{4}$/.test(np)){alert('Пароль должен быть ровно 4 цифры');return;}
-  const emps_raw=window._allEmpsCache||[];
-  const empIdx=emps_raw.findIndex(e=>e?.id===_lkEmpId);
-  if(empIdx<0){toast('Сотрудник не найден');return;}
-  // Write only the staffPin field for this employee's index path
-  set(ref(fdb,`/appData/employees/${empIdx}/staffPin`),np)
-    .then(()=>{
-      if(emps_raw[empIdx])emps_raw[empIdx].staffPin=np;
-      toast('✅ Пароль изменён');
-    })
-    .catch(e=>toast('Ошибка: '+e.message));
+  // Open interface modal instead of browser prompt
+  document.getElementById('newPinInp').value='';
+  document.getElementById('newPinInp2').value='';
+  document.getElementById('newPinError').textContent='';
+  document.getElementById('changePinOv').classList.add('open');
+  setTimeout(()=>document.getElementById('newPinInp').focus(),200);
+};
+window.closeChangePin=function(){document.getElementById('changePinOv').classList.remove('open');};
+window.submitNewPin=async function(){
+  const np=document.getElementById('newPinInp').value.trim();
+  const np2=document.getElementById('newPinInp2').value.trim();
+  const errEl=document.getElementById('newPinError');
+  if(!/^\d{4}$/.test(np)){errEl.textContent='Пароль должен быть ровно 4 цифры';return;}
+  if(np!==np2){errEl.textContent='Пароли не совпадают';return;}
+  if(!_lkEmpId){errEl.textContent='Сотрудник не определён';return;}
+  try{
+    // Read employees fresh from Firebase (cache may be empty)
+    const snap=await get(ref(fdb,'/appData/employees'));
+    const raw=snap.val();
+    const emps=Array.isArray(raw)?raw:Object.values(raw||{});
+    const empIdx=emps.findIndex(e=>e?.id===_lkEmpId);
+    if(empIdx<0){errEl.textContent='Сотрудник не найден в базе';return;}
+    await set(ref(fdb,`/appData/employees/${empIdx}/staffPin`),np);
+    toast('✅ Пароль изменён');
+    closeChangePin();
+  }catch(e){errEl.textContent='Ошибка: '+e.message;}
 };
 
 async function openPersonalAccount(emp){
@@ -2605,22 +2744,82 @@ window.closeChartEdit=function(){document.getElementById('chartEditOv').classLis
 <div id="updateBanner" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--blue);color:#fff;padding:10px 18px;border-radius:12px;font-size:12px;font-weight:600;cursor:pointer;z-index:200;box-shadow:0 4px 20px rgba(0,91,255,.4)" onclick="location.reload()">🔄 Доступно обновление — нажмите для обновления</div>
 <div style="text-align:center;padding:6px;font-size:10px;color:var(--t3);background:var(--card2);border-top:1px solid var(--border)">ПВЗ Система · <span id="appVerTxt" onclick="document.getElementById('chungaOv').classList.add('open')" style="cursor:pointer;text-decoration:underline dotted">v1.4.1</span></div>
 
-<!-- CHUNGA-CHANGA MODAL -->
+<!-- CHUNGA-CHANGA MODAL (#10) -->
 <div class="ov" id="chungaOv" onclick="if(event.target===this)document.getElementById('chungaOv').classList.remove('open')">
-  <div class="modal" style="text-align:center">
+  <div class="modal" style="text-align:center;overflow:hidden">
     <div class="m-h"></div>
-    <div style="font-size:48px;margin:12px 0">🌴</div>
-    <div class="m-t">Чунга-Чанга</div>
+    <div style="font-size:64px;margin:8px 0;animation:chungaWiggle 1.2s ease-in-out infinite">🌴</div>
+    <div class="m-t" style="font-size:24px;background:linear-gradient(90deg,#f59e0b,#ef4444,#8b5cf6,#06b6d4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-weight:900">Чунга-Чанга</div>
     <div class="m-b">
-      <div style="color:var(--t2);font-size:13px;margin-bottom:20px">ПВЗ система · v1.4.1</div>
-      <button onclick="window.open('battleship.html','_blank')" style="width:100%;padding:14px;border-radius:13px;border:none;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-family:Onest,sans-serif;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px">
-        🚢 Чунга-Чанга: Морской бой
+      <div style="color:var(--t2);font-size:13px;margin:4px 0 4px;font-style:italic">«Чунга-чанга — синий небосвод!<br>Чунга-чанга — лето круглый год!» 🎶</div>
+      <div style="font-size:32px;margin:10px 0;letter-spacing:4px">🦜 🥥 🐒 🌺 ⛵</div>
+      <div style="color:var(--t3);font-size:11px;margin-bottom:16px">Секретный режим разработчиков.<br>Вы его нашли. Поздравляем 🎉<br>Теперь обратной дороги нет.</div>
+      <button onclick="window.open('battleship.html','_blank')" style="width:100%;padding:15px;border-radius:14px;border:none;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-family:Onest,sans-serif;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px;box-shadow:0 4px 16px rgba(118,75,162,.4)">
+        🚢 Запустить Морской бой
       </button>
-      <button onclick="document.getElementById('chungaOv').classList.remove('open')" style="width:100%;padding:12px;border-radius:13px;border:1px solid var(--border);background:var(--bg2);color:var(--t1);font-family:Onest,sans-serif;font-size:14px;font-weight:600;cursor:pointer">
-        Закрыть
+      <button onclick="document.getElementById('chungaOv').classList.remove('open')" style="width:100%;padding:11px;border-radius:13px;border:1px solid var(--border);background:var(--bg2);color:var(--t1);font-family:Onest,sans-serif;font-size:13px;font-weight:600;cursor:pointer">
+        Вернуться к работе 😔
       </button>
+      <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--border);font-size:8.5px;line-height:1.7;color:var(--t3);text-align:center;opacity:.75">
+        Разработано специально для <b>Kozonko Corporation 2026</b><br>
+        великолепным и неповторимым <b>Incept Studios</b> (2018–2026).<br>
+        Только для внутреннего использования. Не для продажи,<br>
+        не для распространения. Конфиденциально.
+      </div>
     </div>
   </div>
 </div>
+<style>@keyframes chungaWiggle{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}</style>
+
+<!-- CHANGE PIN MODAL -->
+<div class="ov" id="changePinOv" onclick="if(event.target===this)closeChangePin()">
+  <div class="modal">
+    <div class="m-h"></div>
+    <div class="m-t">Смена пароля</div>
+    <div class="m-b">
+      <div style="font-size:12px;color:var(--t3);margin-bottom:10px">Введите новый 4-значный пароль для входа в личный кабинет</div>
+      <input id="newPinInp" type="password" inputmode="numeric" maxlength="4" placeholder="Новый пароль" style="width:100%;padding:12px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--t1);font-size:18px;text-align:center;letter-spacing:8px;font-family:Onest,sans-serif;margin-bottom:8px">
+      <input id="newPinInp2" type="password" inputmode="numeric" maxlength="4" placeholder="Повторите пароль" style="width:100%;padding:12px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--t1);font-size:18px;text-align:center;letter-spacing:8px;font-family:Onest,sans-serif">
+      <div id="newPinError" style="color:var(--red);font-size:12px;text-align:center;margin-top:8px;min-height:16px"></div>
+      <button onclick="submitNewPin()" style="width:100%;padding:13px;margin-top:10px;background:var(--blue);color:#fff;border:none;border-radius:13px;font-family:Onest,sans-serif;font-size:14px;font-weight:700;cursor:pointer">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- AVATAR CROP MODAL (#11) -->
+<div class="ov" id="cropOv" onclick="if(event.target===this)closeCrop()">
+  <div class="modal" style="text-align:center">
+    <div class="m-h"></div>
+    <div class="m-t">Кадрирование фото</div>
+    <div class="m-b">
+      <div style="font-size:12px;color:var(--t3);margin-bottom:12px">Перетащите фото и настройте масштаб</div>
+      <canvas id="cropCanvas" width="240" height="240" style="border-radius:50%;cursor:grab;touch-action:none;background:var(--bg2);margin:0 auto;display:block"></canvas>
+      <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin:14px 0">
+        <button onclick="cropZoom(-0.2)" style="width:40px;height:40px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--t1);font-size:20px;cursor:pointer">−</button>
+        <span style="font-size:11px;color:var(--t3)">масштаб</span>
+        <button onclick="cropZoom(0.2)" style="width:40px;height:40px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--t1);font-size:20px;cursor:pointer">+</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="closeCrop()" style="flex:1;padding:12px;border-radius:13px;border:1px solid var(--border);background:var(--bg2);color:var(--t1);font-family:Onest,sans-serif;font-weight:600;cursor:pointer">Отмена</button>
+        <button onclick="applyCrop()" style="flex:2;padding:12px;border-radius:13px;border:none;background:var(--blue);color:#fff;font-family:Onest,sans-serif;font-weight:700;cursor:pointer">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const cv=document.getElementById('cropCanvas');
+  if(cv){
+    cv.addEventListener('mousedown',cropDragStart);
+    window.addEventListener('mousemove',cropDragMove);
+    window.addEventListener('mouseup',cropDragEnd);
+    cv.addEventListener('touchstart',cropDragStart,{passive:false});
+    cv.addEventListener('touchmove',cropDragMove,{passive:false});
+    cv.addEventListener('touchend',cropDragEnd);
+    cv.addEventListener('wheel',e=>{e.preventDefault();cropZoom(e.deltaY<0?0.1:-0.1);},{passive:false});
+  }
+})();
+</script>
 </body>
 </html>
