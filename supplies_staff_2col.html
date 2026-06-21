@@ -1223,7 +1223,7 @@ function buildPage(){
             <span class="mt-txt" id="miniTimerText">—</span>
           </div>
           <div id="empCard"" style="margin-bottom:14px"></div>
-          <div id="tlWrap" style="margin-bottom:14px"></div>
+          <div id="tlWrap" style="display:none"></div>
           <div class="sbg">
             <button class="sbtn g" id="b-open"        onclick="startShiftFlow()"><span class="si">🟢</span>Начать смену</button>
             <button class="sbtn r" id="b-close"       onclick="doShift('close')"><span class="si">🔴</span>Завершить</button>
@@ -1363,29 +1363,52 @@ async function loadSchedule(){
   const today=tDay(),tom=tTom();
   const ym=today.slice(0,7),ymT=tom.slice(0,7);
   try{
-    const [tsSnap,tmSnap,empSnap,tabsSnap]=await Promise.all([
+    const [tsSnap,tmSnap,empSnap,tabsSnap,shiftSnap]=await Promise.all([
       get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/assignments/${today}`)),
       get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ymT}/assignments/${tom}`)),
       get(ref(fdb,'/appData/employees')),
       get(ref(fdb,'/appData/tabs')),
+      get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}`)),
     ]);
     const rawEmp=empSnap.val();
     const emps=Array.isArray(rawEmp)?rawEmp:Object.values(rawEmp||{});
     const todayA=tsSnap.val(),tomA=tmSnap.val();
-    const todayE=emps.find(e=>e?.id===todayA?.employeeId)||null;
+    // Используем локальный shiftData (уже обновлён после open/close без кеша)
+    // + shiftSnap как резервный источник если shiftData ещё не загружен
+    const localOpen=shiftData?.open;
+    const firebaseOpen=shiftSnap.val()?.open;
+    const shiftOpen=localOpen||firebaseOpen;
+    // Приоритет: emp_id (прямой id) > VK user_id > график
+    const openedEmpId=shiftOpen?.emp_id||null;
+    const openedVkId=shiftOpen?.user_id||null;
+    let todayE=null;
+    if(openedEmpId&&openedEmpId!=='web_staff'){
+      todayE=emps.find(e=>e?.id===openedEmpId||String(e?.id)===String(openedEmpId))||null;
+    }
+    if(!todayE&&openedVkId&&String(openedVkId)!=='web_staff'){
+      todayE=emps.find(e=>String(e?.tgChatId)===String(openedVkId)||String(e?.id)===String(openedVkId))||null;
+    }
+    if(!todayE){
+      const schedEmpId=todayA?.employeeId||null;
+      todayE=emps.find(e=>e?.id===schedEmpId)||null;
+    }
     const tomE  =emps.find(e=>e?.id===tomA?.employeeId)||null;
     const same  =todayA?.employeeId&&todayA.employeeId===tomA?.employeeId;
     const todayDate=new Date();
     let calc=0;
     if(todayE?.id){
       const tabs=tabsSnap.val()||{},seen=new Set();
+      const todayStr=tDay();// 'YYYY-MM-DD' — сравниваем строки, быстро и без timezone багов
       for(const tid in tabs){
         const tab=tabs[tid];
         for(const ym2 in(tab.monthData||{})){
           const asgns=tab.monthData[ym2].assignments||{};
           for(const date in asgns){
-            const [y,m,d]=date.split('-').map(Number);
-            if(new Date(y,m-1,d)<=todayDate&&asgns[date]?.employeeId===todayE.id&&!seen.has(date+'_'+tid)){seen.add(date+'_'+tid);calc++;}
+            // Считаем только даты <= сегодня (не будущие смены)
+            // Ключ seen: только дата — один день = одна смена, независимо от ПВЗ
+            if(date<=todayStr&&asgns[date]?.employeeId===todayE.id&&!seen.has(date)){
+              seen.add(date);calc++;
+            }
           }
         }
       }
@@ -1422,8 +1445,9 @@ async function loadSchedule(){
         🔐 Открыть личный кабинет
       </button>`;
     }
-    const tlWrap=document.getElementById('tlWrap');
-    if(tlWrap&&todayE){
+    const tlWrap=document.getElementById('lkTlWrap')||document.getElementById('tlWrap');
+    const bonusEnabledForTl=window._todayEmpData?.bonuses_enabled!==false;
+    if(tlWrap&&todayE&&bonusEnabledForTl){
       // Build milestone HTML — labels BELOW track, not overlapping
       const msDots=msDefs.map(m=>{
         const on=total>=m.n;// earned if total (not cycle) >= milestone
@@ -1566,7 +1590,7 @@ window.doShift=async function(type,empId,empName,empVkId){
   try{
     if(type==='open'){
       await set(ref(fdb,`${base}/open`),{time,user_id:empVkId||empId||'web_staff',username:empName||'Сотрудник',emp_id:empId});
-      await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'open_shift',user_id:empVkId||empId||'web_staff',username:empName||'Сотрудник',pvz_name:pvzName,emp_name:empName||'',ts:Date.now()});
+      await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'open_shift',user_id:empVkId||empId||'web_staff',emp_firebase_id:empId||'',username:empName||'Сотрудник',pvz_name:pvzName,emp_name:empName||'',ts:Date.now()});
     }else if(type==='close'){
       const reqMkts=pvzMarkets.filter(mktIsRequired);
       const statsOK=reqMkts.length===0||reqMkts.every(m=>{const v=shiftData[`${m}_received_count`];return v!==undefined&&v!==null&&String(v).trim()!=='';});
@@ -1576,19 +1600,32 @@ window.doShift=async function(type,empId,empName,empVkId){
       await set(ref(fdb,`${base}/close`),{time,user_id:closerId,username:closerName});
       await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'close_shift',user_id:closerId,username:closerName,pvz_name:pvzName,ts:Date.now()});
     }
-    // Read fresh & verify — runs for all shift types
-    const snap=await get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}`));
-    shiftData=snap.val()||{};
-    const newSt=shiftSt();
-    const expected={open:'open',close:'closed'}[type]||'open';
-    if(newSt!==expected){
-      showErr(`Статус смены не изменился (ожидался "${expected}", получили "${newSt}"). Проверьте соединение.`);
-      if(b)b.disabled=false;
-    }else{
-      playAnim(type);
-      updateShiftUI();
-      checkPreClose();
+    // Обновляем локальный shiftData сразу — не делаем get() т.к. Firebase может
+    // вернуть кешированные данные, из-за чего кажется что запись не прошла
+    if(type==='open'){
+      if(!shiftData)shiftData={};
+      shiftData.open={time,user_id:empVkId||empId||'web_staff',username:empName||'Сотрудник',emp_id:empId};
+    }else if(type==='close'){
+      if(!shiftData)shiftData={};
+      shiftData.close={time,user_id:closerId,username:closerName};
     }
+    playAnim(type);
+    updateShiftUI();
+    checkPreClose();
+    // Фоновая верификация через 3 секунды — без блокировки UI
+    setTimeout(async()=>{
+      try{
+        const snap=await get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}`));
+        const fresh=snap.val()||{};
+        const key=type==='open'?'open':'close';
+        if(!fresh[key]){
+          toast('⚠️ Данные о смене не подтверждены Firebase. Проверьте соединение.');
+        } else {
+          shiftData=fresh; // синхронизируем с реальными данными
+          updateShiftUI();
+        }
+      }catch(e){toast('⚠️ Не удалось проверить запись: '+String(e));}
+    },3000);
   }catch(e){
     showErr('Ошибка при записи смены: '+String(e));
     if(b)b.disabled=false;
@@ -2263,61 +2300,167 @@ window.schRemoveDay=function(ev,date){
 
 // Export calendar to PNG via canvas, store + notify bot
 window.sendScheduleToChat=async function(){
+  // Отправляет ТОЛЬКО в чат ПВЗ (без уведомления в служебный чат)
   if(!pvzId){toast('Выберите ПВЗ');return;}
   const ym=document.getElementById('schMonth')?.value;if(!ym)return;
   toast('Готовлю картинку…');
   try{
     const dataUrl=schRenderToPng(ym);
-    // Save proposal + image + pending action for bot
-    await set(ref(fdb,`/supplies/schedule_proposals/${pvzId}/${ym}`),{...schProposal,_submitted_at:Date.now()});
     await set(ref(fdb,`/supplies/pending_actions/${pvzId}_schedule`),{
-      type:'schedule_image',pvz_id:pvzId,pvz_name:pvzName,ym,
-      image:dataUrl,ts:Date.now()
+      type:'schedule_image_pvz_only',  // только в чат ПВЗ
+      pvz_id:pvzId,pvz_name:pvzName,ym,
+      image:dataUrl,
+      ts:Date.now()
     });
-    toast('✅ Отправлено боту — скоро придёт в чат ПВЗ');
+    toast('✅ Отправлено в чат ПВЗ');
     document.getElementById('schOv').classList.remove('open');
   }catch(e){toast('Ошибка: '+e.message);}
 };
+
+
+function schRenderCompareToPng(ym){
+  return new Promise(async resolve=>{
+    const [yr,mo]=ym.split('-').map(Number);
+    const daysInMonth=new Date(yr,mo,0).getDate();
+    const firstDay=new Date(yr,mo-1,1).getDay();
+    const startOffset=(firstDay+6)%7;
+    const rows=Math.ceil((startOffset+daysInMonth)/7);
+    const curSnap=await get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/assignments`));
+    const curData=curSnap.val()||{};
+    const empsRaw=(await get(ref(fdb,'/appData/employees'))).val();
+    const emps=Array.isArray(empsRaw)?empsRaw:Object.values(empsRaw||{});
+    function empById(id){return emps.find(e=>e?.id===id)||null;}
+    function shortName(e){if(!e)return '';const p=(e.fullName||e.name||'').split(' ');return p[0]+(p[1]?' '+p[1][0]+'.':'');}
+    const cur={};
+    for(const d in curData){const eid=curData[d]?.employeeId;const e=empById(eid);if(e)cur[d]={empName:shortName(e),color:e.color||'#2563EB'};}
+    const prop={};
+    for(const d in schProposal){if(!d.startsWith('_'))prop[d]={empName:schProposal[d].empName,color:schProposal[d].color||'#2563EB'};}
+    const changed=new Set();
+    new Set([...Object.keys(cur),...Object.keys(prop)]).forEach(d=>{if((cur[d]?.empName||'')!==(prop[d]?.empName||''))changed.add(d);});
+    // Layout
+    const cell=108,gap=7,cols=7,padX=28,headH=34,colGap=36;
+    const calW=padX+cols*cell+(cols-1)*gap+padX;
+    const H=94+headH+rows*cell+(rows-1)*gap+28;
+    const W=calW*2+colGap;
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+    const ctx=cv.getContext('2d');
+    // White bg
+    ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);
+    // Subtle top accent stripe
+    ctx.fillStyle='#2563EB';ctx.fillRect(0,0,W,6);
+    // Title
+    ctx.fillStyle='#111827';ctx.font='800 26px system-ui,sans-serif';ctx.textAlign='center';
+    ctx.fillText('Текущий график',calW/2,44);
+    ctx.fillText('Предлагаемый',calW+colGap+calW/2,44);
+    // subtitle
+    ctx.fillStyle='#6B7280';ctx.font='600 16px system-ui,sans-serif';
+    ctx.fillText('',calW/2,66);
+    ctx.fillText('(красным — изменения)',calW+colGap+calW/2,66);
+    // divider
+    ctx.strokeStyle='#E5E7EB';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(calW+colGap/2,16);ctx.lineTo(calW+colGap/2,H-16);ctx.stroke();
+    const wd=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+    function drawCal(ox,data,showChanged){
+      // Day headers
+      for(let i=0;i<7;i++){
+        ctx.fillStyle=i>=5?'#7C3AED':'#2563EB';
+        ctx.font='800 14px system-ui,sans-serif';ctx.textAlign='center';
+        ctx.fillText(wd[i],ox+padX+i*(cell+gap)+cell/2,86);
+      }
+      let dow=startOffset,row=0;
+      for(let d=1;d<=daysInMonth;d++){
+        const ds=`${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const x=ox+padX+dow*(cell+gap);
+        const y=94+headH+row*(cell+gap);
+        const info=data[ds];const isW=dow>=5;const isCh=changed.has(ds);
+        let bg,bc,nc;
+        if(info){bg=info.color+'22';bc=info.color;nc=info.color;}
+        else{bg=isW?'#F5F3FF':'#F9FAFB';bc=isW?'#A78BFA':'#D1D5DB';nc=isW?'#6D28D9':'#6B7280';}
+        ctx.fillStyle=bg;ctx.strokeStyle=bc;ctx.lineWidth=2;
+        roundRect(ctx,x,y,cell,cell,14);ctx.fill();ctx.stroke();
+        // Changed: red stripe border
+        if(showChanged&&isCh){
+          ctx.save();ctx.beginPath();roundRect(ctx,x,y,cell,cell,14);ctx.clip();
+          for(let off=-cell;off<cell*2;off+=14){
+            ctx.strokeStyle='rgba(239,68,68,0.35)';ctx.lineWidth=5;
+            ctx.beginPath();ctx.moveTo(x+off,y);ctx.lineTo(x+off+cell,y+cell);ctx.stroke();
+          }
+          ctx.restore();
+          ctx.strokeStyle='#DC2626';ctx.lineWidth=3;
+          ctx.beginPath();roundRect(ctx,x+1.5,y+1.5,cell-3,cell-3,13);ctx.stroke();
+        }
+        // Number
+        ctx.fillStyle=nc;ctx.font=`900 ${isCh&&showChanged?'26':'24'}px system-ui,sans-serif`;ctx.textAlign='left';
+        ctx.fillText(String(d),x+10,y+32);
+        // Weekday abbr
+        const nw=ctx.measureText(String(d)).width;
+        ctx.fillStyle=nc+'88';ctx.font='600 11px system-ui,sans-serif';
+        ctx.fillText(wd[dow],x+12+nw,y+22);
+        // Name
+        if(info){
+          ctx.fillStyle=info.color;ctx.font='700 14px system-ui,sans-serif';ctx.textAlign='center';
+          ctx.fillText(info.empName.slice(0,10),x+cell/2,y+cell-12);
+        }
+        dow++;if(dow>6){dow=0;row++;}
+      }
+    }
+    drawCal(0,cur,false);
+    drawCal(calW+colGap,prop,true);
+    resolve(cv.toDataURL('image/png'));
+  });
+}
 
 function schRenderToPng(ym){
   const [yr,mo]=ym.split('-').map(Number);
   const daysInMonth=new Date(yr,mo,0).getDate();
   const firstDay=new Date(yr,mo-1,1).getDay();
   const startOffset=(firstDay+6)%7;
-  const cell=90,gap=8,cols=7,pad=30,headH=70,dayH=28;
+  const cell=116,gap=8,cols=7,padX=30,padTop=96,headH=36;
   const rows=Math.ceil((startOffset+daysInMonth)/7);
-  const W=pad*2+cols*cell+(cols-1)*gap;
-  const H=pad+headH+dayH+rows*cell+(rows-1)*gap+pad;
+  const W=padX*2+cols*cell+(cols-1)*gap;
+  const H=padTop+headH+rows*cell+(rows-1)*gap+padX;
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;
   const ctx=cv.getContext('2d');
-  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
+  // Clean white background
+  ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#2563EB';ctx.fillRect(0,0,W,6);
   // Title
-  ctx.fillStyle='#1A1A1A';ctx.font='900 28px sans-serif';ctx.textAlign='left';
-  ctx.fillText(`Предлагаемый график · ${pvzName}`,pad,pad+30);
-  ctx.fillStyle='#666';ctx.font='600 18px sans-serif';
-  ctx.fillText(`${RU_M_NOM[mo-1]} ${yr}`,pad,pad+56);
+  ctx.fillStyle='#111827';ctx.font='900 28px system-ui,sans-serif';ctx.textAlign='left';
+  ctx.fillText(`${pvzName}`,padX,44);
+  const RU_M=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  ctx.fillStyle='#2563EB';ctx.font='700 18px system-ui,sans-serif';
+  ctx.fillText(`Предлагаемый график · ${RU_M[mo-1]} ${yr}`,padX,68);
   // Weekday headers
   const wd=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-  ctx.font='700 13px sans-serif';ctx.fillStyle='#999';ctx.textAlign='center';
-  for(let i=0;i<7;i++)ctx.fillText(wd[i],pad+i*(cell+gap)+cell/2,pad+headH+18);
-  // Days
+  for(let i=0;i<7;i++){
+    ctx.fillStyle=i>=5?'#7C3AED':'#2563EB';
+    ctx.font='800 15px system-ui,sans-serif';ctx.textAlign='center';
+    ctx.fillText(wd[i],padX+i*(cell+gap)+cell/2,padTop+headH-10);
+  }
+  // Cells
   let dow=startOffset,row=0;
   for(let d=1;d<=daysInMonth;d++){
-    const x=pad+dow*(cell+gap);
-    const y=pad+headH+dayH+row*(cell+gap);
-    const date=`${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const p=schProposal[date];
-    const col=p?.color||'#E5E5E5';
-    // cell bg
-    ctx.fillStyle=p?col+'22':'#F5F5F5';
-    ctx.strokeStyle=p?col:'#E0E0E0';ctx.lineWidth=2;
-    roundRect(ctx,x,y,cell,cell,12);ctx.fill();ctx.stroke();
-    // day number
-    ctx.fillStyle=p?col:'#1A1A1A';ctx.font='900 26px sans-serif';ctx.textAlign='center';
-    ctx.fillText(String(d),x+cell/2,y+cell/2-2);
-    // emp name
-    if(p){ctx.fillStyle=col;ctx.font='700 13px sans-serif';
-      ctx.fillText(p.empName.slice(0,12),x+cell/2,y+cell-14);}
+    const x=padX+dow*(cell+gap);
+    const y=padTop+headH+row*(cell+gap);
+    const dt=`${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const p=schProposal[dt];const isW=dow>=5;
+    let bg,bc,nc;
+    if(p){const c=p.color||'#2563EB';bg=c+'22';bc=c;nc=c;}
+    else{bg=isW?'#F5F3FF':'#F9FAFB';bc=isW?'#A78BFA':'#E5E7EB';nc=isW?'#6D28D9':'#9CA3AF';}
+    ctx.fillStyle=bg;ctx.strokeStyle=bc;ctx.lineWidth=2.5;
+    roundRect(ctx,x,y,cell,cell,16);ctx.fill();ctx.stroke();
+    // Day number large
+    ctx.fillStyle=nc;ctx.font='900 30px system-ui,sans-serif';ctx.textAlign='left';
+    ctx.fillText(String(d),x+12,y+38);
+    // Weekday abbr
+    const nw=ctx.measureText(String(d)).width;
+    ctx.fillStyle=nc+'77';ctx.font='600 12px system-ui,sans-serif';
+    ctx.fillText(wd[dow],x+14+nw,y+28);
+    // Name
+    if(p){
+      ctx.fillStyle=p.color||'#2563EB';ctx.font='800 15px system-ui,sans-serif';ctx.textAlign='center';
+      ctx.fillText(p.empName.slice(0,11),x+cell/2,y+cell-14);
+    }
     dow++;if(dow>6){dow=0;row++;}
   }
   return cv.toDataURL('image/png');
@@ -2329,17 +2472,30 @@ function roundRect(ctx,x,y,w,h,r){
 }
 
 window.saveScheduleProposal=async function(){
+  // Сохраняет и отправляет сравнительную картинку ТОЛЬКО в служебный чат
   if(!pvzId){toast('Выберите ПВЗ');return;}
   const ym=document.getElementById('schMonth')?.value;if(!ym)return;
+  toast('Готовлю сравнительную картинку…');
   try{
-    // Save only this month's dates from the proposal
+    const propId='P'+Date.now().toString(36).slice(-5).toUpperCase();
+    const compareUrl=await schRenderCompareToPng(ym);
+    // Compare image отдельно (большой размер)
+    await set(ref(fdb,`/supplies/schedule_compare_img/${pvzId}`),compareUrl);
+    // Сохраняем proposal
     const monthData={};
-    Object.keys(schProposal).forEach(dt=>{if(dt.startsWith(ym))monthData[dt]=schProposal[dt];});
+    Object.keys(schProposal).forEach(dt=>{if(dt.startsWith(ym)||!dt.startsWith('_'))monthData[dt]=schProposal[dt];});
     monthData._submitted_at=Date.now();
+    monthData._prop_id=propId;
     await set(ref(fdb,`/supplies/schedule_proposals/${pvzId}/${ym}`),monthData);
+    // Pending action — бот пошлёт ТОЛЬКО в служебный чат
+    await set(ref(fdb,`/supplies/pending_actions/${pvzId}_schedule`),{
+      type:'schedule_image_alert_only',  // только в служебный чат
+      pvz_id:pvzId,pvz_name:pvzName,ym,
+      prop_id:propId,
+      ts:Date.now()
+    });
     window._schSavedMonths=window._schSavedMonths||{};window._schSavedMonths[ym]=true;
-    toast('✅ Предложение сохранено!');
-    // Keep modal open so user sees it persisted
+    toast('✅ Сохранено — уведомление отправлено в служебный чат');
   }catch(e){toast('Ошибка: '+e.message);}
 };
 
@@ -2681,12 +2837,14 @@ async function openPersonalAccount(emp){
       </div>`).join(''):'<div style="font-size:12px;color:var(--t3);padding:8px 0">Вычетов нет</div>';
     const adj=emp.manualShiftAdjustment||0;
     const adjReason=emp.adjustReason||'';
-    const adjHtml=adj?`<div style="margin-bottom:16px;padding:12px 16px;background:rgba(16,163,74,.08);border:1.5px solid rgba(16,163,74,.25);border-radius:12px">
+    const bonusEnabled=emp.bonuses_enabled!==false;// default: enabled
+    const adjHtml=(bonusEnabled&&adj)?`<div style="margin-bottom:16px;padding:12px 16px;background:rgba(16,163,74,.08);border:1.5px solid rgba(16,163,74,.25);border-radius:12px">
       <div style="font-family:Unbounded,sans-serif;font-size:10px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🎁 Бонусные смены</div>
       <div style="font-size:14px;font-weight:700;color:var(--green)">Добавленный модификатор: ${adj>0?'+':''}${adj} ${shiftWord(Math.abs(adj))}</div>
       ${adjReason?`<div style="font-size:12px;color:var(--t2);margin-top:4px">За что: ${adjReason}</div>`:''}
     </div>`:'';
     lkEl.innerHTML=adjHtml+`
+      <div id="lkTlWrap" style="margin-bottom:14px"></div>
       <div style="margin-bottom:16px">
         <div style="font-family:Unbounded,sans-serif;font-size:11px;font-weight:800;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Ближайшие выплаты</div>
         ${payments.map((p,i)=>`
@@ -2764,7 +2922,7 @@ window.saveChartEdit=async function(){
 window.closeChartEdit=function(){document.getElementById('chartEditOv').classList.remove('open');};
 </script>
 <div id="updateBanner" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--blue);color:#fff;padding:10px 18px;border-radius:12px;font-size:12px;font-weight:600;cursor:pointer;z-index:200;box-shadow:0 4px 20px rgba(0,91,255,.4)" onclick="location.reload()">🔄 Доступно обновление — нажмите для обновления</div>
-<div style="text-align:center;padding:6px;font-size:10px;color:var(--t3);background:var(--card2);border-top:1px solid var(--border)">ПВЗ Система · <span id="appVerTxt" onclick="document.getElementById('chungaOv').classList.add('open')" style="cursor:pointer;text-decoration:underline dotted">v1.5.1</span></div>
+<div style="text-align:center;padding:6px;font-size:10px;color:var(--t3);background:var(--card2);border-top:1px solid var(--border)">ПВЗ Система · <span id="appVerTxt" onclick="document.getElementById('chungaOv').classList.add('open')" style="cursor:pointer;text-decoration:underline dotted">v1.36.1</span></div>
 
 <!-- CHUNGA-CHANGA MODAL (#10) -->
 <div class="ov" id="chungaOv" onclick="if(event.target===this)document.getElementById('chungaOv').classList.remove('open')">
