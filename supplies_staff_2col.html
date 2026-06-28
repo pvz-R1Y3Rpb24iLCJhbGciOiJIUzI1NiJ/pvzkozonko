@@ -905,12 +905,33 @@ let pageBuilt=false,banners=[],bnrIdx=0,bnrTimer=null;
 // ── EMPLOYEE CACHE: загружается один раз, все функции используют getEmployees() ──
 let _empCache=null;
 async function getEmployees(){
+  // 1. Память (в рамках текущей сессии)
   if(_empCache)return _empCache;
-  const raw=await getEmployees();
+  // 2. localStorage с TTL 1 час — экономит 8.8 MB × 28 из 30 загрузок в день
+  try{
+    const cached=localStorage.getItem('_pvz_emp_cache');
+    if(cached){
+      const {ts,data}=JSON.parse(cached);
+      if(Date.now()-ts < 3600000){ // 1 час
+        _empCache=data;
+        return _empCache;
+      }
+    }
+  }catch(e){}
+  // 3. Firebase — только если нет кэша
+  const snap=await get(ref(fdb,'/appData/employees'));
+  const raw=snap.val();
   _empCache=Array.isArray(raw)?raw:Object.values(raw||{});
+  // Сохраняем в localStorage
+  try{
+    localStorage.setItem('_pvz_emp_cache',JSON.stringify({ts:Date.now(),data:_empCache}));
+  }catch(e){}
   return _empCache;
 }
-function invalidateEmpCache(){_empCache=null;}
+function invalidateEmpCache(){
+  _empCache=null;
+  try{localStorage.removeItem('_pvz_emp_cache');}catch(e){}
+}
 let showSMA=true,showAvg=false;
 let mktRequired={};// {mkt: true/false} from /supplies/config/mkt_required (default: required)
 const pvzPickM=new Map();
@@ -1391,15 +1412,15 @@ async function loadSchedule(){
   const today=tDay(),tom=tTom();
   const ym=today.slice(0,7),ymT=tom.slice(0,7);
   try{
-    const [tsSnap,tmSnap,empSnap,tabsSnap,shiftSnap]=await Promise.all([
+    const [tsSnap,tmSnap,_emps,tabsSnap,shiftSnap]=await Promise.all([
       get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/assignments/${today}`)),
       get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ymT}/assignments/${tom}`)),
       getEmployees(),
       get(ref(fdb,'/appData/tabs')),
       get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}`)),
     ]);
-    const rawEmp=empSnap.val();
-    const emps=Array.isArray(rawEmp)?rawEmp:Object.values(rawEmp||{});
+    // getEmployees() возвращает массив напрямую (кэш), не snapshot
+    const emps=Array.isArray(_emps)?_emps:Object.values(_emps||{});
     const todayA=tsSnap.val(),tomA=tmSnap.val();
     // Используем локальный shiftData (уже обновлён после open/close без кеша)
     // + shiftSnap как резервный источник если shiftData ещё не загружен
@@ -1518,12 +1539,11 @@ window.startShiftFlow=async function(){
   document.getElementById('empSelGrid').innerHTML='<div class="loading"><span class="ld">●</span></div>';
   document.getElementById('empOv').classList.add('open');
   try{
-    const [empSnap, pvzTabSnap]=await Promise.all([
+    const [_emps2, pvzTabSnap]=await Promise.all([
       getEmployees(),
       get(ref(fdb,`/appData/tabs/${pvzId}`)),
     ]);
-    const rawEmp=empSnap.val();
-    const allEmps=Array.isArray(rawEmp)?rawEmp:Object.values(rawEmp||{});
+    const allEmps=Array.isArray(_emps2)?_emps2:Object.values(_emps2||{});
     const pvzTabVal=pvzTabSnap.val()||{};
     // Count shifts per employee on THIS PVZ specifically (faster, more relevant)
     const shiftCounts={};
@@ -2541,12 +2561,12 @@ window.openLeaderboard=async function(){
   el.innerHTML='<div class="loading"><span class="ld">●</span></div>';
   document.getElementById('lbOv').classList.add('open');
   try{
-    const [empSnap,tabsSnap]=await Promise.all([
+    const [_emps3,tabsSnap]=await Promise.all([
       getEmployees(),
       get(ref(fdb,'/appData/tabs')),
     ]);
-    const rawEmp=empSnap.val();
-    const emps=(Array.isArray(rawEmp)?rawEmp:Object.values(rawEmp||{})).filter(e=>!e.hidden);
+    // getEmployees() возвращает массив напрямую
+    const emps=(Array.isArray(_emps3)?_emps3:Object.values(_emps3||{})).filter(e=>!e.hidden);
     const tabs=tabsSnap.val()||{};
     const today=tDay();
     const counts={};
@@ -2684,15 +2704,19 @@ window.applyCrop=async function(){
 };
 async function saveLkAvatar(data){
   if(!_lkEmpId)return;
-  const rawEmp=await getEmployees();
-  const emps=Array.isArray(rawEmp)?rawEmp:Object.values(rawEmp||{});
-  const updated=emps.map(e=>e.id===_lkEmpId?{...e,avatarUrl:data}:e);
-  await set(ref(fdb,'/appData/employees'),updated);
+  // ОПТИМИЗАЦИЯ: пишем только поле avatarUrl конкретного сотрудника по индексу
+  // (не весь массив 8.8 MB)
+  const emps=await getEmployees();
+  const idx=emps.findIndex(e=>e?.id===_lkEmpId);
+  if(idx<0){toast('Ошибка: сотрудник не найден');return;}
+  await set(ref(fdb,`/appData/employees/${idx}/avatarUrl`),data);
+  // Обновляем кэш в памяти и localStorage
+  _empCache[idx]={..._empCache[idx],avatarUrl:data};
+  try{localStorage.setItem('_pvz_emp_cache',JSON.stringify({ts:Date.now(),data:_empCache}));}catch(e){}
   toast('Аватарка обновлена!');
-  // Update in local cache and employee card
   if(window._todayEmpData?.id===_lkEmpId){
     window._todayEmpData.avatarUrl=data;
-    loadSchedule(); // refresh card
+    loadSchedule();
   }
 }
 
