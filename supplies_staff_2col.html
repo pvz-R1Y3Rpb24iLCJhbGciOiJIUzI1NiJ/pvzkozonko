@@ -2420,10 +2420,11 @@ function schRenderCompareToPng(ym){
         const ds=`${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         const x=ox+padX+dow*(cell+gap);
         const y=94+headH+row*(cell+gap);
-        const info=data[ds];const isW=dow>=5;const isCh=changed.has(ds);
+        const info=data[ds];const isCh=changed.has(ds);
+        // ИСПРАВЛЕНО: незаполненный день (включая выходные) — белый/серый
         let bg,bc,nc;
         if(info){bg=info.color+'22';bc=info.color;nc=info.color;}
-        else{bg=isW?'#F5F3FF':'#F9FAFB';bc=isW?'#A78BFA':'#D1D5DB';nc=isW?'#6D28D9':'#6B7280';}
+        else{bg='#F9FAFB';bc='#D1D5DB';nc='#6B7280';}
         ctx.fillStyle=bg;ctx.strokeStyle=bc;ctx.lineWidth=2;
         roundRect(ctx,x,y,cell,cell,14);ctx.fill();ctx.stroke();
         // Changed: red stripe border
@@ -2491,10 +2492,12 @@ function schRenderToPng(ym){
     const x=padX+dow*(cell+gap);
     const y=padTop+headH+row*(cell+gap);
     const dt=`${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const p=schProposal[dt];const isW=dow>=5;
+    const p=schProposal[dt];
+    // ИСПРАВЛЕНО: незаполненный день — всегда белый/серый, выходные больше
+    // не выделяются фиолетовым отдельно (только если есть назначение).
     let bg,bc,nc;
     if(p){const c=p.color||'#2563EB';bg=c+'22';bc=c;nc=c;}
-    else{bg=isW?'#F5F3FF':'#F9FAFB';bc=isW?'#A78BFA':'#E5E7EB';nc=isW?'#6D28D9':'#9CA3AF';}
+    else{bg='#F9FAFB';bc='#E5E7EB';nc='#9CA3AF';}
     ctx.fillStyle=bg;ctx.strokeStyle=bc;ctx.lineWidth=2.5;
     roundRect(ctx,x,y,cell,cell,16);ctx.fill();ctx.stroke();
     // Day number large
