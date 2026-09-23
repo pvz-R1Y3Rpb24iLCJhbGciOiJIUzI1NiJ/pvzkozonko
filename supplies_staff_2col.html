@@ -634,6 +634,35 @@ body{font-family:'Onest',sans-serif;background:var(--bg);color:var(--t1);min-hei
   </div>
 </div>
 
+<!-- МОДУЛЬНАЯ СМЕНА / СМЕНА СОТРУДНИКА -->
+<div class="ov" id="modShiftOv" onclick="if(event.target===this)document.getElementById('modShiftOv').classList.remove('open')">
+  <div class="modal" style="max-height:88vh;overflow-y:auto">
+    <div class="m-h"></div>
+    <div class="m-t" id="modShiftTitle">Модульная смена</div>
+    <div style="padding:0 18px 6px" id="modShiftBody">
+      <div id="msSlot1" style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--t3);margin-bottom:5px">1-Й СОТРУДНИК</div>
+        <select id="msEmp1" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:10px;font-family:'Onest',sans-serif;font-size:14px;background:var(--bg2);color:var(--t1)"></select>
+      </div>
+      <div id="msSlot2" style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--t3);margin-bottom:5px">2-Й СОТРУДНИК</div>
+        <select id="msEmp2" style="width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:10px;font-family:'Onest',sans-serif;font-size:14px;background:var(--bg2);color:var(--t1)">
+          <option value="">— не назначен —</option>
+        </select>
+      </div>
+      <div id="msTimelineWrap" style="margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--t3);margin-bottom:5px">ПЕРЕДАЧА СМЕНЫ В <span id="msSplitTimeLbl">15:00</span></div>
+        <input type="range" id="msSplitTime" style="width:100%" min="0" max="1439" step="5" value="900" oninput="onMsSplitInput(this.value)">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-top:2px">
+          <span id="msRangeStart">09:00</span><span id="msRangeEnd">21:00</span>
+        </div>
+      </div>
+      <div id="msErr" style="display:none;color:#FF3353;font-size:12px;margin-bottom:6px"></div>
+    </div>
+    <button class="emp-confirm-btn" id="msConfirmBtn" onclick="saveModShift()">Сохранить</button>
+  </div>
+</div>
+
 <!-- CART -->
 <div class="ov" id="cartOv" onclick="if(event.target===this)closeCartModal()">
   <div class="modal"><div class="m-h"></div><div class="m-t">Заявка на расходники</div>
@@ -855,6 +884,7 @@ async function uploadToCloudinary(file, folder='avatars') {
 
 async function set(r, val)  { return r.set(val); }
 async function get(r)       { const s = await r.once('value'); return s; }
+async function push(r, val) { const nr = r.push(); await nr.set(val); return nr; }
 
 // ── MONTH NAMES ──────────────────────────────────────────────────────────────
 const RU_M_GEN=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
@@ -935,7 +965,7 @@ function invalidateEmpCache(){
 let showSMA=true,showAvg=false;
 let mktRequired={};// {mkt: true/false} from /supplies/config/mkt_required (default: required)
 const pvzPickM=new Map();
-let unsubInv=null,unsubCfg=null,unsubPCfg=null,unsubShift=null;
+let unsubInv=null,unsubCfg=null,unsubPCfg=null,unsubShift=null,unsubAsgnToday=null,unsubAsgnTom=null;
 let supOpen=false;
 // Employee selection
 let selectedEmpId=null,selectedEmpName=null,selectedEmpVkId=null,recentEmployees=[];
@@ -1176,8 +1206,8 @@ window.pickPvz=function(id){
 
 // ── SELECT PVZ ──
 function selectPvz(id,name,markets){
-  [unsubInv,unsubCfg,unsubPCfg,unsubShift].forEach(u=>u&&u());
-  unsubInv=unsubCfg=unsubPCfg=unsubShift=null;
+  [unsubInv,unsubCfg,unsubPCfg,unsubShift,unsubAsgnToday,unsubAsgnTom].forEach(u=>u&&u());
+  unsubInv=unsubCfg=unsubPCfg=unsubShift=unsubAsgnToday=unsubAsgnTom=null;
   pvzId=id;pvzName=name;pvzMarkets=markets||['ozon'];
   pvzCloseTime=(pvzMapAll[id]||{}).close_time||'21:00';
   _camUnlocked=false;// require PIN again for cameras on new PVZ
@@ -1200,8 +1230,15 @@ function selectPvz(id,name,markets){
   unsubShift=onValue(ref(fdb,`/appData/tabs/${id}/monthData/${ym}/openCloseEvents/${today}`),s=>{
     shiftData=s.val()||{};
     if(!pageBuilt){rS=true;tryBuild();}
-    else{updateShiftUI();updStatsVals();checkPreClose();}
+    else{updateShiftUI();updStatsVals();checkPreClose();loadSchedule();}
   },()=>{shiftData={};rS=true;tryBuild();});
+  // БАГ-ФИКС: сотрудник на карточке брался из assignments только при первой загрузке
+  // страницы (loadSchedule вызывался один раз в buildPage). Если график/модульная
+  // смена меняются, карточка не обновлялась без ручного refresh. Теперь слушаем
+  // изменения графика на сегодня/завтра в реальном времени.
+  unsubAsgnToday=onValue(ref(fdb,`/appData/tabs/${id}/monthData/${ym}/assignments/${today}`),()=>{if(pageBuilt)loadSchedule();});
+  const tomYm=tTom().slice(0,7);
+  unsubAsgnTom=onValue(ref(fdb,`/appData/tabs/${id}/monthData/${tomYm}/assignments/${tTom()}`),()=>{if(pageBuilt)loadSchedule();});
 }
 
 function defCfg(){return{
@@ -1276,6 +1313,10 @@ function buildPage(){
           <div class="sbg">
             <button class="sbtn g" id="b-open"        onclick="startShiftFlow()"><span class="si">🟢</span>Начать смену</button>
             <button class="sbtn r" id="b-close"       onclick="doShift('close')"><span class="si">🔴</span>Завершить</button>
+          </div>
+          <div class="sbg" style="margin-top:8px">
+            <button class="sbtn" id="b-modshift" style="background:var(--bg2);border:1.5px solid var(--border);color:var(--t1)" onclick="openModShift('module')"><span class="si">🧩</span>Модульная смена</button>
+            <button class="sbtn" id="b-empswitch" style="background:var(--bg2);border:1.5px solid var(--border);color:var(--t1)" onclick="openModShift('switch')"><span class="si">🔁</span>Смена сотрудника</button>
           </div>
 
           <div style="height:1px;background:var(--border);margin:14px 0"></div>
@@ -1611,6 +1652,100 @@ window.onEmpCustom=function(v){
 window.confirmEmpShift=async function(){
   document.getElementById('empOv').classList.remove('open');
   await doShift('open',selectedEmpId,selectedEmpName,selectedEmpVkId);
+};
+
+// ── МОДУЛЬНАЯ СМЕНА / СМЕНА СОТРУДНИКА ──
+// Совместимо со схемой index.html: assignments[date] = {employeeId, rate, hours, second:{employeeId,rate,hours}, splitTime}
+let _msMode='module',_msAllEmps=[],_msMinM=540,_msMaxM=1260; // диапазон по умолчанию 09:00–21:00 в минутах
+function m2hm(m){const h=Math.floor(m/60),mm=m%60;return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0');}
+function hm2m(hm){const[h,mi]=String(hm||'0:0').split(':').map(Number);return h*60+(mi||0);}
+window.onMsSplitInput=function(v){
+  document.getElementById('msSplitTimeLbl').textContent=m2hm(+v);
+};
+window.openModShift=async function(mode){
+  if(!pvzId)return;
+  _msMode=mode;
+  const errEl=document.getElementById('msErr');errEl.style.display='none';
+  document.getElementById('modShiftTitle').textContent=mode==='module'?'Модульная смена':'Смена сотрудника';
+  document.getElementById('msSlot2').style.display=mode==='module'?'':'none';
+  document.getElementById('msTimelineWrap').style.display=mode==='module'?'':'none';
+  document.getElementById('msConfirmBtn').textContent='Сохранить';
+  try{
+    const _emps=await getEmployees();
+    _msAllEmps=(Array.isArray(_emps)?_emps:Object.values(_emps||{})).filter(e=>!e.hidden);
+    const today=tDay(),ym=tYM();
+    const asnSnap=await get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/assignments/${today}`));
+    const ass=asnSnap.val()||{};
+    const optHtml=(sel)=>_msAllEmps.map(e=>`<option value="${e.id}" ${e.id===sel?'selected':''}>${e.fullName||e.name||'Сотрудник'}</option>`).join('');
+    document.getElementById('msEmp1').innerHTML=optHtml(ass.employeeId||(shiftData?.open?.emp_id)||'');
+    document.getElementById('msEmp2').innerHTML='<option value="">— не назначен —</option>'+optHtml(ass.second&&ass.second.employeeId||'');
+    // Диапазон таймлайна: открытие смены (если уже открыта) → закрытие ПВЗ; иначе 09:00 → закрытие ПВЗ
+    _msMinM=shiftData?.open?.time?hm2m(shiftData.open.time.slice(0,5)):540;
+    _msMaxM=hm2m(pvzCloseTime||'21:00');
+    if(_msMaxM<=_msMinM)_msMaxM=_msMinM+60;
+    const slider=document.getElementById('msSplitTime');
+    slider.min=_msMinM;slider.max=_msMaxM;
+    const defSplit=hm2m(ass.splitTime||'15:00');
+    const clamped=Math.min(Math.max(defSplit,_msMinM),_msMaxM);
+    slider.value=clamped;
+    document.getElementById('msSplitTimeLbl').textContent=m2hm(clamped);
+    document.getElementById('msRangeStart').textContent=m2hm(_msMinM);
+    document.getElementById('msRangeEnd').textContent=m2hm(_msMaxM);
+    document.getElementById('modShiftOv').classList.add('open');
+  }catch(e){
+    showErr('Не удалось загрузить данные смены: '+e);
+  }
+};
+window.saveModShift=async function(){
+  if(!pvzId)return;
+  const errEl=document.getElementById('msErr');errEl.style.display='none';
+  const emp1Id=document.getElementById('msEmp1').value;
+  const emp2Id=_msMode==='module'?document.getElementById('msEmp2').value:'';
+  if(!emp1Id){errEl.textContent='Выберите сотрудника';errEl.style.display='';return;}
+  if(_msMode==='module'&&emp2Id&&emp2Id===emp1Id){errEl.textContent='Выберите двух разных сотрудников';errEl.style.display='';return;}
+  const btn=document.getElementById('msConfirmBtn');btn.disabled=true;btn.textContent='Сохраняю…';
+  const emp1=_msAllEmps.find(e=>e.id===emp1Id);
+  const today=tDay(),ym=tYM(),now=new Date(),nowTime=now.toTimeString().slice(0,8);
+  const asnPath=`/appData/tabs/${pvzId}/monthData/${ym}/assignments/${today}`;
+  const switchesPath=`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}/switches`;
+  try{
+    const asnSnap=await get(ref(fdb,asnPath));
+    const ass=asnSnap.val()||{};
+    const prevEmpId=ass.employeeId||null;
+    const prevEmp=_msAllEmps.find(e=>e.id===prevEmpId);
+    if(_msMode==='module'){
+      const splitM=+document.getElementById('msSplitTime').value;
+      const emp2=emp2Id?_msAllEmps.find(e=>e.id===emp2Id):null;
+      const newAss={...ass,employeeId:emp1Id,rate:ass.rate!==undefined?ass.rate:undefined,
+        second:emp2Id?{employeeId:emp2Id,rate:ass.second&&ass.second.rate!==undefined?ass.second.rate:undefined,hours:ass.second&&ass.second.hours}:null,
+        splitTime:emp2Id?m2hm(splitM):null};
+      Object.keys(newAss).forEach(k=>newAss[k]===undefined&&delete newAss[k]);
+      await set(ref(fdb,asnPath),newAss);
+      await push(ref(fdb,switchesPath),{time:nowTime,type:'module',emp1_id:emp1Id,emp1_name:emp1?.fullName||emp1?.name||'Сотрудник',
+        emp2_id:emp2Id||null,emp2_name:emp2?.fullName||emp2?.name||null,split_time:emp2Id?m2hm(splitM):null});
+    }else{
+      // Смена сотрудника: заменяем текущего сотрудника на дне, лог "передачи смены"
+      const newAss={...ass,employeeId:emp1Id};
+      await set(ref(fdb,asnPath),newAss);
+      await push(ref(fdb,switchesPath),{time:nowTime,type:'switch',from_id:prevEmpId,from_name:prevEmp?.fullName||prevEmp?.name||shiftData?.open?.username||null,
+        to_id:emp1Id,to_name:emp1?.fullName||emp1?.name||'Сотрудник'});
+      // Если смена сейчас открыта — обновляем имя открывшего, чтобы control показывал верное имя
+      if(shiftData?.open){
+        const openPath=`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}/open`;
+        const newOpen={...shiftData.open,emp_id:emp1Id,user_id:emp1?.tgChatId||emp1?.vk_id||emp1Id,username:emp1?.fullName||emp1?.name||'Сотрудник'};
+        await set(ref(fdb,openPath),newOpen);
+        shiftData.open=newOpen;
+      }
+    }
+    document.getElementById('modShiftOv').classList.remove('open');
+    toast(_msMode==='module'?'Модульная смена сохранена':'Сотрудник сменён');
+    await loadSchedule();
+    updateShiftUI();
+  }catch(e){
+    errEl.textContent='Ошибка сохранения: '+e;errEl.style.display='';
+  }finally{
+    btn.disabled=false;btn.textContent='Сохранить';
+  }
 };
 
 // ── SHIFT ACTIONS ──
