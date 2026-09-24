@@ -481,6 +481,8 @@ body{font-family:'Onest',sans-serif;background:var(--bg);color:var(--t1);min-hei
 .empty-i{font-size:40px;margin-bottom:10px}
 .empty-t{font-family:'Unbounded',sans-serif;font-size:13px;font-weight:800;margin-bottom:5px}
 .empty-s{font-size:11px;color:var(--t2);line-height:1.5}
+.mkt-inp.inp-err{border-color:var(--red)!important;animation:inpShake .3s ease}
+@keyframes inpShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 #toast{position:fixed;bottom:86px;left:50%;transform:translateX(-50%) translateY(12px);
   opacity:0;background:var(--t1);color:var(--bg);padding:9px 16px;border-radius:11px;
   font-size:12px;font-weight:600;z-index:300;pointer-events:none;white-space:nowrap;
@@ -1072,14 +1074,14 @@ function checkPreClose(){
     const [oh,om]=openTime.split(':').map(Number);
     const openMins=oh*60+om;
     const nowMins=now.getHours()*60+now.getMinutes();
-    const today=tDay();
+    const today=curShiftDay();
     if(nowMins===openMins+5&&!_pushSent[today+'_photo']){
       _pushSent[today+'_photo']=true;
       push('📸 Напоминание','Не забудьте отправить два фото в чат ПВЗ: вход и клиентская зона');
     }
   }
   const el=document.getElementById('pcAlert'),tt=document.getElementById('pcTitle');
-  const today=tDay();
+  const today=curShiftDay();
   if(shiftSt()!=='open'){if(el)el.classList.remove('on');return;}
   // Show checklist banner in last 30 min (no push spam here)
   if(minsLeft>0&&minsLeft<=30){
@@ -1205,7 +1207,7 @@ window.pickPvz=function(id){
 };
 
 // ── SELECT PVZ ──
-function selectPvz(id,name,markets){
+async function selectPvz(id,name,markets){
   [unsubInv,unsubCfg,unsubPCfg,unsubShift,unsubAsgnToday,unsubAsgnTom].forEach(u=>u&&u());
   unsubInv=unsubCfg=unsubPCfg=unsubShift=unsubAsgnToday=unsubAsgnTom=null;
   pvzId=id;pvzName=name;pvzMarkets=markets||['ozon'];
@@ -1226,7 +1228,9 @@ function selectPvz(id,name,markets){
   unsubInv  =onValue(ref(fdb,`/supplies/inventory/${id}`),     s=>{inventory=s.val()||{};  if(!pageBuilt){rI=true;tryBuild();}else updateQtys();}, ()=>{rI=true;tryBuild();});
   unsubCfg  =onValue(ref(fdb,'/supplies/config/global'),       s=>{const v=s.val();globalCfg=v&&typeof v==='object'?v:defCfg(); if(!pageBuilt){rC=true;tryBuild();}else updateQtys();}, ()=>{globalCfg=defCfg();rC=true;tryBuild();});
   unsubPCfg =onValue(ref(fdb,`/supplies/config/pvz/${id}`),    s=>{pvzCfg=s.val()||{};  if(!pageBuilt){rP=true;tryBuild();}}, ()=>{pvzCfg={};rP=true;tryBuild();});
-  const today=tDay(),ym=tYM();
+  _shiftDay=await resolveShiftDay(id);
+  if(id!==pvzId)return;// пользователь успел выбрать другой ПВЗ, пока мы ждали resolveShiftDay
+  const today=_shiftDay,ym=today.slice(0,7);
   unsubShift=onValue(ref(fdb,`/appData/tabs/${id}/monthData/${ym}/openCloseEvents/${today}`),s=>{
     shiftData=s.val()||{};
     if(!pageBuilt){rS=true;tryBuild();}
@@ -1236,7 +1240,8 @@ function selectPvz(id,name,markets){
   // страницы (loadSchedule вызывался один раз в buildPage). Если график/модульная
   // смена меняются, карточка не обновлялась без ручного refresh. Теперь слушаем
   // изменения графика на сегодня/завтра в реальном времени.
-  unsubAsgnToday=onValue(ref(fdb,`/appData/tabs/${id}/monthData/${ym}/assignments/${today}`),()=>{if(pageBuilt)loadSchedule();});
+  const calToday=tDay(),calYm=tYM();// график/assignments всегда привязаны к реальному календарному дню, не к дню смены
+  unsubAsgnToday=onValue(ref(fdb,`/appData/tabs/${id}/monthData/${calYm}/assignments/${calToday}`),()=>{if(pageBuilt)loadSchedule();});
   const tomYm=tTom().slice(0,7);
   unsubAsgnTom=onValue(ref(fdb,`/appData/tabs/${id}/monthData/${tomYm}/assignments/${tTom()}`),()=>{if(pageBuilt)loadSchedule();});
 }
@@ -1254,6 +1259,23 @@ function defCfg(){return{
 function tDay() {return new Date().toLocaleDateString('sv');}
 function tYM()  {return new Date().toLocaleDateString('sv').slice(0,7);}
 function tTom() {return new Date(Date.now()+86400000).toLocaleDateString('sv');}
+function tYest(){return new Date(Date.now()-86400000).toLocaleDateString('sv');}
+// ФИКС «смена сама закрывается в полночь»: смена привязана к дню, в который её
+// ОТКРЫЛИ, а не к текущему календарному дню. Если вчера смену открыли и не
+// закрыли — она ещё активна, и работать нужно с вчерашним узлом Firebase.
+let _shiftDay=null;
+function curShiftDay(){return _shiftDay||tDay();}
+async function resolveShiftDay(id){
+  const y=tYest(),ymY=y.slice(0,7);
+  try{
+    const ySnap=await get(ref(fdb,`/appData/tabs/${id}/monthData/${ymY}/openCloseEvents/${y}`));
+    const yData=ySnap.val()||{};
+    const yHasOpen =yData.open &&typeof yData.open ==='object'&&Object.keys(yData.open ).length>0;
+    const yHasClose=yData.close&&typeof yData.close==='object'&&Object.keys(yData.close).length>0;
+    if(yHasOpen&&!yHasClose)return y;// вчерашняя смена ещё не закрыта — она текущая
+  }catch(e){}
+  return tDay();
+}
 function getS(n){
   const inv=inventory[n]||{};
   // Pure status storage takes priority
@@ -1452,13 +1474,14 @@ function sb(id,en){const e=document.getElementById(id);if(e)e.disabled=!en;}
 async function loadSchedule(){
   const today=tDay(),tom=tTom();
   const ym=today.slice(0,7),ymT=tom.slice(0,7);
+  const shiftDay=curShiftDay(),shiftYm=shiftDay.slice(0,7);// у графика — календарный день, у самой смены — день её открытия
   try{
     const [tsSnap,tmSnap,_emps,tabsSnap,shiftSnap]=await Promise.all([
       get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/assignments/${today}`)),
       get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ymT}/assignments/${tom}`)),
       getEmployees(),
       get(ref(fdb,'/appData/tabs')),
-      get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}`)),
+      get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${shiftYm}/openCloseEvents/${shiftDay}`)),
     ]);
     // getEmployees() возвращает массив напрямую (кэш), не snapshot
     const emps=Array.isArray(_emps)?_emps:Object.values(_emps||{});
@@ -1706,8 +1729,9 @@ window.saveModShift=async function(){
   const btn=document.getElementById('msConfirmBtn');btn.disabled=true;btn.textContent='Сохраняю…';
   const emp1=_msAllEmps.find(e=>e.id===emp1Id);
   const today=tDay(),ym=tYM(),now=new Date(),nowTime=now.toTimeString().slice(0,8);
+  const shiftDay=curShiftDay(),shiftYm=shiftDay.slice(0,7);// график — по календарному дню, а запись смены — по дню её открытия
   const asnPath=`/appData/tabs/${pvzId}/monthData/${ym}/assignments/${today}`;
-  const switchesPath=`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}/switches`;
+  const switchesPath=`/appData/tabs/${pvzId}/monthData/${shiftYm}/openCloseEvents/${shiftDay}/switches`;
   try{
     const asnSnap=await get(ref(fdb,asnPath));
     const ass=asnSnap.val()||{};
@@ -1731,7 +1755,7 @@ window.saveModShift=async function(){
         to_id:emp1Id,to_name:emp1?.fullName||emp1?.name||'Сотрудник'});
       // Если смена сейчас открыта — обновляем имя открывшего, чтобы control показывал верное имя
       if(shiftData?.open){
-        const openPath=`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}/open`;
+        const openPath=`/appData/tabs/${pvzId}/monthData/${shiftYm}/openCloseEvents/${shiftDay}/open`;
         const newOpen={...shiftData.open,emp_id:emp1Id,user_id:emp1?.tgChatId||emp1?.vk_id||emp1Id,username:emp1?.fullName||emp1?.name||'Сотрудник'};
         await set(ref(fdb,openPath),newOpen);
         shiftData.open=newOpen;
@@ -1768,7 +1792,10 @@ window.doShift=async function(type,empId,empName,empVkId){
   if(!pvzId)return;
   const bId=type==='open'?'b-open':`b-${type.replace('_','-')}`;
   const b=document.getElementById(bId);if(b)b.disabled=true;
-  const now=new Date(),today=tDay(),ym=tYM(),time=now.toTimeString().slice(0,8);
+  // При открытии смена всегда привязывается к сегодняшнему дню; при закрытии —
+  // к дню, в котором её открыли (curShiftDay), даже если сейчас уже другие сутки.
+  if(type==='open')_shiftDay=tDay();
+  const now=new Date(),today=curShiftDay(),ym=today.slice(0,7),time=now.toTimeString().slice(0,8);
   const base=`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}`;
   try{
     if(type==='open'){
@@ -1776,8 +1803,34 @@ window.doShift=async function(type,empId,empName,empVkId){
       await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'open_shift',user_id:empVkId||empId||'web_staff',emp_firebase_id:empId||'',username:empName||'Сотрудник',pvz_name:pvzName,emp_name:empName||'',ts:Date.now()});
     }else if(type==='close'){
       const reqMkts=pvzMarkets.filter(mktIsRequired);
-      const statsOK=reqMkts.length===0||reqMkts.every(m=>{const v=shiftData[`${m}_received_count`];return v!==undefined&&v!==null&&String(v).trim()!=='';});
-      if(!statsOK){showErr('Введите статистику приёмки по обязательным маркетплейсам (или 0)');if(b)b.disabled=false;return;}
+      // ФИКС гонки: если сотрудник только что ввёл цифру и сразу нажал "Завершить",
+      // локальный shiftData ещё не успел получить эхо от Firebase (это происходит
+      // по сети, а не мгновенно) — раньше это ложно считалось "не заполнено".
+      // Теперь при проверке подстраховываемся значением прямо из поля ввода.
+      const missing=reqMkts.filter(m=>{
+        const inp=document.getElementById(`si-${m}`);
+        const domVal=inp?inp.value:'';
+        const v=(shiftData[`${m}_received_count`]!=null&&String(shiftData[`${m}_received_count`]).trim()!=='')
+          ?shiftData[`${m}_received_count`]:domVal;
+        return v===undefined||v===null||String(v).trim()==='';
+      });
+      if(missing.length){
+        missing.forEach(m=>{
+          const inp=document.getElementById(`si-${m}`);
+          if(inp){inp.classList.add('inp-err');inp.focus();}
+        });
+        toast('⚠️ Заполните статистику: '+missing.map(m=>MKTM[m]?.l||m).join(', '));
+        if(b)b.disabled=false;
+        return;
+      }
+      // На случай если введённое значение ещё не успело сохраниться в Firebase —
+      // досохраняем его синхронно перед закрытием, чтобы данные не потерялись.
+      for(const m of reqMkts){
+        const inp=document.getElementById(`si-${m}`);
+        if(inp&&inp.value!==''&&shiftData[`${m}_received_count`]==null){
+          try{await set(ref(fdb,`${base}/${m}_received_count`),Math.max(0,parseInt(inp.value)||0));}catch(e){}
+        }
+      }
       const closerName=window._todayEmpData?.fullName||window._todayEmpData?.name||'Сотрудник';
       const closerId=window._todayEmpData?.tgChatId||window._todayEmpData?.vk_id||window._todayEmpData?.id||'web_staff';
       await set(ref(fdb,`${base}/close`),{time,user_id:closerId,username:closerName});
@@ -1984,14 +2037,19 @@ function updStatsVals(){
     if(chk&&v!=null)chk.classList.add('on');
   });
 }
-window.onStat=function(m,el){el.classList.remove('saved');const c=document.getElementById(`sc-${m}`);if(c)c.classList.remove('on');clearTimeout(statTimers[m]);statTimers[m]=setTimeout(()=>saveStat(m,el),900);};
+window.onStat=function(m,el){el.classList.remove('saved');el.classList.remove('inp-err');const c=document.getElementById(`sc-${m}`);if(c)c.classList.remove('on');clearTimeout(statTimers[m]);statTimers[m]=setTimeout(()=>saveStat(m,el),900);};
 window.blurStat=function(m,el){clearTimeout(statTimers[m]);if(el.value!=='')saveStat(m,el);};
 async function saveStat(m,el){
   if(!pvzId||el.value==='')return;
-  const v=parseInt(el.value)||0,today=tDay(),ym=tYM();
+  const v=parseInt(el.value)||0,today=curShiftDay(),ym=today.slice(0,7);
   try{
     await set(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}/${m}_received_count`),v);
-    el.classList.add('saved');const c=document.getElementById(`sc-${m}`);if(c)c.classList.add('on');
+    // Обновляем локальный кэш сразу, не дожидаясь эха от onValue — иначе есть
+    // окно в несколько сотен мс, когда значение уже сохранено, но проверка
+    // при закрытии смены (doShift) его ещё "не видит" и ложно требует ввод.
+    if(!shiftData)shiftData={};
+    shiftData[`${m}_received_count`]=v;
+    el.classList.add('saved');el.classList.remove('inp-err');const c=document.getElementById(`sc-${m}`);if(c)c.classList.add('on');
     const all={};pvzMarkets.forEach(mm=>{const i=document.getElementById(`si-${mm}`);if(i&&i.value!=='')all[mm]=parseInt(i.value)||0;});
     await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'stats',stats:all,ts:Date.now()});
     toast(`${MKTM[m]?.l||m}: ${v} сохранено`);
@@ -2301,10 +2359,17 @@ window.openBnrPopup=function(i){
 
 
 // ── MIDNIGHT ROLLOVER: reload when date changes so "today" stays correct ──
+// ФИКС: раньше это безусловно делало location.reload() при смене даты, из-за
+// чего подписка на смену переключалась на новый (пустой) день, и открытая
+// ночная смена выглядела как "закрытая", хотя её никто не закрывал.
+// Теперь: пока смена реально открыта (shiftSt()==='open'), день удерживается
+// как curShiftDay() и reload откладывается — перезагрузим страницу только
+// после того, как смену закроют (или если она и не была открыта).
 let _watchDay=new Date().toLocaleDateString('sv');
 setInterval(()=>{
   const d=new Date().toLocaleDateString('sv');
   if(d!==_watchDay){
+    if(pageBuilt&&shiftSt()==='open')return;// смена ещё идёт — не трогаем, проверим на следующем тике
     _watchDay=d;
     // Date changed (past midnight) — reset push tracking and reload fresh data
     _pushSent={};
