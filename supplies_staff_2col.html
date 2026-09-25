@@ -973,7 +973,7 @@ let supOpen=false;
 let selectedEmpId=null,selectedEmpName=null,selectedEmpVkId=null,recentEmployees=[];
 
 // ── CLOCK ──
-function tickClock(){const e=document.getElementById('clk');if(e)e.textContent=new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});}
+function tickClock(){const e=document.getElementById('clk');if(e)e.textContent=mskNowParts().time.slice(0,5);}
 tickClock();setInterval(tickClock,10000);
 
 // ── PUSH NOTIFICATIONS ──
@@ -1067,13 +1067,14 @@ function statsAllEntered(){
   });
 }
 function checkPreClose(){
-  const now=new Date(),minsLeft=closeMins()-(now.getHours()*60+now.getMinutes());
+  const _mp=mskNowParts(),_mh=+_mp.time.slice(0,2),_mm=+_mp.time.slice(3,5);
+  const minsLeft=closeMins()-(_mh*60+_mm);
   // #5 Photo reminder: 5 min after shift opens
   if(pvzMapAll[pvzId]?.photo_reminder!==false&&shiftData?.open?.time){
     const openTime=shiftData.open.time; // 'HH:MM:SS'
     const [oh,om]=openTime.split(':').map(Number);
     const openMins=oh*60+om;
-    const nowMins=now.getHours()*60+now.getMinutes();
+    const nowMins=_mh*60+_mm;
     const today=curShiftDay();
     if(nowMins===openMins+5&&!_pushSent[today+'_photo']){
       _pushSent[today+'_photo']=true;
@@ -1255,11 +1256,24 @@ function defCfg(){return{
     "скотч":{"unit":"рулонов","low_threshold":2},
     "ручки":{"unit":"штук","low_threshold":3},
     "антисептик":{"unit":"штук","low_threshold":2}
-  };}function closeMins(){const[h,m]=(pvzCloseTime||'21:00').split(':').map(Number);return h*60+(m||0);}
-function tDay() {return new Date().toLocaleDateString('sv');}
-function tYM()  {return new Date().toLocaleDateString('sv').slice(0,7);}
-function tTom() {return new Date(Date.now()+86400000).toLocaleDateString('sv');}
-function tYest(){return new Date(Date.now()-86400000).toLocaleDateString('sv');}
+  };}// ЕДИНЫЙ ИСТОЧНИК ДАТЫ/ВРЕМЕНИ — всегда по МСК, независимо от часового пояса
+// и настроек часов устройства сотрудника. Вся система (Firebase-пути, бот)
+// живёт строго по МСК; раньше клиент брал new Date() в местном времени
+// устройства, из-за чего при сбитых часах/поясе на телефоне смена могла
+// записаться "будущим" временем и/или не тем календарным днём.
+function mskNowParts(){
+  const s=new Date().toLocaleString('sv-SE',{timeZone:'Europe/Moscow',hour12:false});// "YYYY-MM-DD HH:MM:SS"
+  const [date,time]=s.split(' ');
+  return {date,time};
+}
+function mskDateStr(offsetMs=0){
+  return new Date(Date.now()+offsetMs).toLocaleString('sv-SE',{timeZone:'Europe/Moscow'}).slice(0,10);
+}
+function closeMins(){const[h,m]=(pvzCloseTime||'21:00').split(':').map(Number);return h*60+(m||0);}
+function tDay() {return mskDateStr();}
+function tYM()  {return mskDateStr().slice(0,7);}
+function tTom() {return mskDateStr(86400000);}
+function tYest(){return mskDateStr(-86400000);}
 // ФИКС «смена сама закрывается в полночь»: смена привязана к дню, в который её
 // ОТКРЫЛИ, а не к текущему календарному дню. Если вчера смену открыли и не
 // закрыли — она ещё активна, и работать нужно с вчерашним узлом Firebase.
@@ -1728,7 +1742,7 @@ window.saveModShift=async function(){
   if(_msMode==='module'&&emp2Id&&emp2Id===emp1Id){errEl.textContent='Выберите двух разных сотрудников';errEl.style.display='';return;}
   const btn=document.getElementById('msConfirmBtn');btn.disabled=true;btn.textContent='Сохраняю…';
   const emp1=_msAllEmps.find(e=>e.id===emp1Id);
-  const today=tDay(),ym=tYM(),now=new Date(),nowTime=now.toTimeString().slice(0,8);
+  const today=tDay(),ym=tYM(),nowTime=mskNowParts().time;
   const shiftDay=curShiftDay(),shiftYm=shiftDay.slice(0,7);// график — по календарному дню, а запись смены — по дню её открытия
   const asnPath=`/appData/tabs/${pvzId}/monthData/${ym}/assignments/${today}`;
   const switchesPath=`/appData/tabs/${pvzId}/monthData/${shiftYm}/openCloseEvents/${shiftDay}/switches`;
@@ -1788,6 +1802,35 @@ function playAnim(type){
   setTimeout(()=>sa.classList.remove('run'),1600);
 }
 
+// ── АУДИТ ОТКРЫТИЯ/ЗАКРЫТИЯ СМЕНЫ (кто, откуда) ──
+// ВАЖНО: IP здесь самоотчётный — страница сама спрашивает у внешнего сервиса
+// "какой у меня IP" и пишет ответ в Firebase. Это форензика для обычных
+// ситуаций (сотрудник перепутал ПВЗ, странное время открытия и т.п.), но
+// НЕ защита от взлома: тот, кто пишет в Firebase напрямую в обход этой
+// страницы (зная databaseURL — он всё равно виден в исходнике любого
+// Firebase-веб-клиента), может указать в запросе любой IP или вообще
+// обойти это поле. Настоящая защита — Security Rules на стороне Firebase.
+function logShiftAudit(action,time,userId,username){
+  (async()=>{
+    let ip='unknown';
+    try{
+      const ctrl=new AbortController();
+      const timer=setTimeout(()=>ctrl.abort(),2500);
+      const r=await fetch('https://api.ipify.org?format=json',{signal:ctrl.signal});
+      clearTimeout(timer);
+      ip=(await r.json()).ip||'unknown';
+    }catch(e){/* сеть недоступна/заблокирована — пишем запись всё равно, просто с ip:'unknown' */}
+    try{
+      await set(ref(fdb,`/supplies/shift_audit_log/${Date.now()}`),{
+        pvz_id:pvzId,pvz_name:pvzName,action,time,
+        user_id:userId||'web_staff',username:username||'Сотрудник',
+        ip,ua:navigator.userAgent||'',
+        msk_datetime:`${mskNowParts().date} ${mskNowParts().time}`
+      });
+    }catch(e){/* аудит не должен ронять основное действие */}
+  })();
+}
+
 window.doShift=async function(type,empId,empName,empVkId){
   if(!pvzId)return;
   const bId=type==='open'?'b-open':`b-${type.replace('_','-')}`;
@@ -1795,12 +1838,13 @@ window.doShift=async function(type,empId,empName,empVkId){
   // При открытии смена всегда привязывается к сегодняшнему дню; при закрытии —
   // к дню, в котором её открыли (curShiftDay), даже если сейчас уже другие сутки.
   if(type==='open')_shiftDay=tDay();
-  const now=new Date(),today=curShiftDay(),ym=today.slice(0,7),time=now.toTimeString().slice(0,8);
+  const today=curShiftDay(),ym=today.slice(0,7),time=mskNowParts().time;
   const base=`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}`;
   try{
     if(type==='open'){
       await set(ref(fdb,`${base}/open`),{time,user_id:empVkId||empId||'web_staff',username:empName||'Сотрудник',emp_id:empId});
       await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'open_shift',user_id:empVkId||empId||'web_staff',emp_firebase_id:empId||'',username:empName||'Сотрудник',pvz_name:pvzName,emp_name:empName||'',ts:Date.now()});
+      logShiftAudit('open',time,empVkId||empId,empName);
     }else if(type==='close'){
       const reqMkts=pvzMarkets.filter(mktIsRequired);
       // ФИКС гонки: если сотрудник только что ввёл цифру и сразу нажал "Завершить",
@@ -1835,6 +1879,7 @@ window.doShift=async function(type,empId,empName,empVkId){
       const closerId=window._todayEmpData?.tgChatId||window._todayEmpData?.vk_id||window._todayEmpData?.id||'web_staff';
       await set(ref(fdb,`${base}/close`),{time,user_id:closerId,username:closerName});
       await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'close_shift',user_id:closerId,username:closerName,pvz_name:pvzName,ts:Date.now()});
+      logShiftAudit('close',time,closerId,closerName);
     }
     // Обновляем локальный shiftData сразу — не делаем get() т.к. Firebase может
     // вернуть кешированные данные, из-за чего кажется что запись не прошла
@@ -2072,8 +2117,8 @@ function buildPeriodPills(){
 function calcSMA(data,p=7){return data.map((_,i)=>{const sl=data.slice(Math.max(0,i-p+1),i+1);return sl.reduce((s,v)=>s+v,0)/sl.length;});}
 async function loadChart(days){
   const canvas=document.getElementById('statsChart');if(!canvas||!pvzId)return;
-  const now=new Date(),allDays=[],yms=new Set();
-  for(let i=days-1;i>=0;i--){const d=new Date(now-i*86400000),ds=d.toLocaleDateString('sv');allDays.push(ds);yms.add(ds.slice(0,7));}
+  const allDays=[],yms=new Set();
+  for(let i=days-1;i>=0;i--){const ds=mskDateStr(-i*86400000);allDays.push(ds);yms.add(ds.slice(0,7));}
   const allData={};
   for(const ym of yms){try{const s=await get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents`));Object.assign(allData,s.val()||{});}catch(e){}}
   const pts=[];allDays.forEach(d=>{const dd=allData[d]||{};const total=pvzMarkets.reduce((s,m)=>s+(dd[`${m}_received_count`]||0),0);if(total>0)pts.push({date:d,total});});
@@ -2211,8 +2256,8 @@ window.setSupplyStatus=async function(name, status){
   buildSupList(items);
   updateSupBadges(items);
   try{
-    await set(ref(fdb,`/supplies/inventory/${pvzId}/${name}`),{status,unit,last_updated:new Date().toLocaleString('ru-RU')});
-    await set(ref(fdb,`/supplies/edit_log/${Date.now()}`),{pvz_id:pvzId,pvz_name:pvzName,source:window._todayEmpData?.fullName||window._todayEmpData?.name||'web_staff',changes:[{name,status}],timestamp:new Date().toLocaleString('ru-RU')});
+    await set(ref(fdb,`/supplies/inventory/${pvzId}/${name}`),{status,unit,last_updated:new Date().toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})});
+    await set(ref(fdb,`/supplies/edit_log/${Date.now()}`),{pvz_id:pvzId,pvz_name:pvzName,source:window._todayEmpData?.fullName||window._todayEmpData?.name||'web_staff',changes:[{name,status}],timestamp:new Date().toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})});
     const lbl={ok:'Много',warn:'Мало',low:'Нет'}[status];
     toast(`${name}: ${lbl}`);
   }catch(e){toast('Ошибка сохранения');}
@@ -2232,8 +2277,8 @@ window.stepQ=async function(name,unit,delta){
   const qEl=document.getElementById(`sq-${nk}`),sEl=document.getElementById(`sv-${nk}`);
   if(qEl){qEl.textContent=nQ;qEl.className=`s-q ${s}`;}if(sEl)sEl.textContent=nQ;
   try{
-    await set(ref(fdb,`/supplies/inventory/${pvzId}/${name}`),{qty:nQ,unit,last_updated:new Date().toLocaleString('ru-RU')});
-    await set(ref(fdb,`/supplies/edit_log/${Date.now()}`),{pvz_id:pvzId,pvz_name:pvzName,source:'web_staff',changes:[{name,qty:delta,unit}],timestamp:new Date().toLocaleString('ru-RU')});
+    await set(ref(fdb,`/supplies/inventory/${pvzId}/${name}`),{qty:nQ,unit,last_updated:new Date().toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})});
+    await set(ref(fdb,`/supplies/edit_log/${Date.now()}`),{pvz_id:pvzId,pvz_name:pvzName,source:'web_staff',changes:[{name,qty:delta,unit}],timestamp:new Date().toLocaleString('ru-RU',{timeZone:'Europe/Moscow'})});
     toast('Сохранено');
   }catch(e){toast('Ошибка');}
 };
@@ -2279,7 +2324,7 @@ window.sendOrder=async function(){
   const btn=document.getElementById('cartSend');btn.disabled=true;btn.textContent='Отправляем…';
   try{
     const ts=Date.now(),reqId=`req_${ts}_${pvzId}`,ordQ={};entries.forEach(([n,q])=>{ordQ[n]=q;});
-    await set(ref(fdb,`/supplies/requests/${reqId}`),{id:reqId,pvz_id:pvzId,pvz_name:pvzName,items:entries.map(([n])=>n),ordered_quantities:ordQ,status:'pending',created_at:new Date().toLocaleString('ru-RU'),source:'staff_web'});
+    await set(ref(fdb,`/supplies/requests/${reqId}`),{id:reqId,pvz_id:pvzId,pvz_name:pvzName,items:entries.map(([n])=>n),ordered_quantities:ordQ,status:'pending',created_at:new Date().toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}),source:'staff_web'});
     await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'supply_request',items:entries.map(([n])=>n),ordered_quantities:ordQ,ts:Date.now()});
     cart={};entries.forEach(([n])=>{const ob=document.getElementById(`so-${CSS.escape(n)}`);if(ob){ob.className='s-ob idle';ob.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>';}});
     closeCartModal();updateCartBar();toast('✅ Заявка отправлена!');
@@ -2289,7 +2334,7 @@ window.sendFree=async function(){
   const text=document.getElementById('freeTa')?.value.trim();if(!text||!pvzId){toast('Напишите что нужно');return;}
   try{
     const ts=Date.now(),reqId=`req_${ts}_${pvzId}`;
-    await set(ref(fdb,`/supplies/requests/${reqId}`),{id:reqId,pvz_id:pvzId,pvz_name:pvzName,items:[],free_text:text,status:'pending',created_at:new Date().toLocaleString('ru-RU'),source:'staff_web_free'});
+    await set(ref(fdb,`/supplies/requests/${reqId}`),{id:reqId,pvz_id:pvzId,pvz_name:pvzName,items:[],free_text:text,status:'pending',created_at:new Date().toLocaleString('ru-RU',{timeZone:'Europe/Moscow'}),source:'staff_web_free'});
     await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'supply_request',items:[],free_text:text,ts:Date.now()});
     document.getElementById('freeTa').value='';toast('✅ Свободный заказ отправлен!');
   }catch(e){toast('Ошибка');}
@@ -2365,9 +2410,9 @@ window.openBnrPopup=function(i){
 // Теперь: пока смена реально открыта (shiftSt()==='open'), день удерживается
 // как curShiftDay() и reload откладывается — перезагрузим страницу только
 // после того, как смену закроют (или если она и не была открыта).
-let _watchDay=new Date().toLocaleDateString('sv');
+let _watchDay=mskDateStr();
 setInterval(()=>{
-  const d=new Date().toLocaleDateString('sv');
+  const d=mskDateStr();
   if(d!==_watchDay){
     if(pageBuilt&&shiftSt()==='open')return;// смена ещё идёт — не трогаем, проверим на следующем тике
     _watchDay=d;
