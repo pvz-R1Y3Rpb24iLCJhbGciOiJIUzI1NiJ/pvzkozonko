@@ -411,10 +411,33 @@ body{font-family:'Onest',sans-serif;background:var(--bg);color:var(--t1);min-hei
   transition:border-color .15s,box-shadow .15s}
 .kc-field:focus-within{border-color:rgba(79,107,255,.55);box-shadow:0 0 0 4px rgba(79,107,255,.1)}
 .kc-field-lbl{font-size:10.5px;font-weight:600;color:var(--k-text2);text-transform:uppercase;letter-spacing:.5px}
-.key-box-pin{width:100%;height:36px;border:none;outline:none;background:transparent;padding:0;
+.kc-pin-row{display:flex;align-items:center;gap:6px;height:36px}
+.kc-pin-btn{flex-shrink:0;width:32px;height:32px;border-radius:10px;border:1px solid var(--k-line);background:var(--k-bg);
+  color:var(--k-text2);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:background .12s,color .12s}
+.kc-pin-btn:hover{background:var(--k-soft);color:var(--k-primary)}
+.kc-pin-btn.on{background:var(--k-soft);color:var(--k-primary);border-color:rgba(79,107,255,.35)}
+.key-box-pin{flex:1;min-width:0;display:flex;align-items:center;height:36px;border:none;outline:none;background:transparent;padding:0;
   font-family:'Unbounded',sans-serif;font-size:20px;font-weight:700;letter-spacing:10px;
   color:var(--k-text);text-align:left}
-.key-box-pin::placeholder{color:var(--k-text3);letter-spacing:10px}
+.key-box-pin.masked{color:var(--k-text3)}
+.key-box-pin.empty{font-family:'Onest',sans-serif;font-size:12px;font-weight:600;letter-spacing:0;color:var(--k-text3)}
+/* PIN edit modal */
+#keyPinOv{z-index:130}
+.kp-sub{font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:14px}
+.kp-lbl{display:block;font-size:11px;font-weight:600;color:var(--t2);margin:0 0 6px}
+.kp-inp{width:100%;height:52px;border:1.5px solid var(--border);border-radius:14px;outline:none;background:#fff;
+  font-family:'Unbounded',sans-serif;font-size:22px;font-weight:700;letter-spacing:12px;text-align:center;color:var(--t1);margin-bottom:12px}
+.kp-inp:focus{border-color:#4F6BFF;box-shadow:0 0 0 4px rgba(79,107,255,.12)}
+.kp-err{min-height:16px;font-size:11.5px;font-weight:600;color:var(--red);margin:-4px 0 6px}
+.kp-sum{display:flex;align-items:center;justify-content:center;gap:14px;padding:16px;border-radius:14px;background:var(--card2);border:1px solid var(--border);margin-bottom:10px}
+.kp-sum div{text-align:center}
+.kp-sum small{display:block;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kp-sum b{font-family:'Unbounded',sans-serif;font-size:20px;letter-spacing:4px}
+.kp-sum .old{color:var(--t3);text-decoration:line-through}
+.kp-actions{display:flex;gap:8px;margin:6px 0 16px}
+.kp-actions button{flex:1;margin:0;width:auto}
+.kp-btn-sec{padding:14px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);font-family:'Onest',sans-serif;font-size:13px;font-weight:600;color:var(--t2);cursor:pointer}
+.emp-confirm-btn:disabled{opacity:.45;cursor:not-allowed}
 .kc-cnt{display:flex;align-items:center;justify-content:space-between;height:36px;gap:6px}
 .kc-cnt .key-pm{width:32px;height:32px;border-radius:10px;background:var(--k-bg);border:1px solid var(--k-line)}
 .kc-cnt .key-pm:hover{background:var(--k-soft)}
@@ -784,6 +807,40 @@ body{font-family:'Onest',sans-serif;background:var(--bg);color:var(--t1);min-hei
     <div class="m-b" style="padding-top:4px">
       <input class="emp-custom-inp" id="keySlotCustomInp" placeholder="Или введите имя…" style="margin-bottom:10px">
       <button class="emp-confirm-btn" style="margin:0" onclick="confirmKeySlotCustom()">Готово</button>
+    </div>
+  </div>
+</div>
+
+<!-- KEY BOX PIN EDIT MODAL -->
+<div class="ov" id="keyPinOv" onclick="if(event.target===this)closeKeyPinEdit()">
+  <div class="modal">
+    <div class="m-h"></div>
+    <div class="m-t">Изменить код ключницы</div>
+    <div class="m-b">
+      <div id="kpStep1">
+        <div class="kp-sub">Введите новый 4-значный код дважды. Старый код будет заменён только после подтверждения.</div>
+        <label class="kp-lbl" for="kpNew">Новый код</label>
+        <input class="kp-inp" id="kpNew" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="····" oninput="kpInput(this)">
+        <label class="kp-lbl" for="kpNew2">Повторите код</label>
+        <input class="kp-inp" id="kpNew2" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="····" oninput="kpInput(this)">
+        <div class="kp-err" id="kpErr"></div>
+        <div class="kp-actions">
+          <button type="button" class="kp-btn-sec" onclick="closeKeyPinEdit()">Отмена</button>
+          <button type="button" class="emp-confirm-btn" id="kpNext" disabled onclick="kpNext()">Далее</button>
+        </div>
+      </div>
+      <div id="kpStep2" style="display:none">
+        <div class="kp-sub">Проверьте и подтвердите замену кода. Новый код сразу увидят все сотрудники этого ПВЗ.</div>
+        <div class="kp-sum">
+          <div><small>Было</small><b class="old" id="kpOld">—</b></div>
+          <div style="color:var(--t3)">→</div>
+          <div><small>Станет</small><b id="kpNewView"></b></div>
+        </div>
+        <div class="kp-actions">
+          <button type="button" class="kp-btn-sec" onclick="kpBack()">Назад</button>
+          <button type="button" class="emp-confirm-btn" id="kpSave" onclick="kpSave()">Подтвердить</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1415,10 +1472,14 @@ function buildPage(){
             <div class="kc-box-lock" title="Защищено PIN-кодом"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>PIN</div>
           </div>
           <div class="kc-box-grid">
-            <label class="kc-field">
+            <div class="kc-field">
               <span class="kc-field-lbl">PIN-код</span>
-              <input type="text" class="key-box-pin" id="keyBoxPin" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" autocomplete="off" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4);onKeysInput()">
-            </label>
+              <div class="kc-pin-row">
+                <span class="key-box-pin" id="keyBoxPinView">••••</span>
+                <button type="button" class="kc-pin-btn" id="keyBoxPinEye" onclick="toggleKeyPinVisible()" title="Показать код" aria-label="Показать код"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                <button type="button" class="kc-pin-btn" onclick="openKeyPinEdit()" title="Изменить код" aria-label="Изменить код"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+              </div>
+            </div>
             <div class="kc-field">
               <span class="kc-field-lbl">Ключей в ключнице</span>
               <div class="kc-cnt">
@@ -2024,10 +2085,84 @@ function renderKeysSection(){
   }
   el.innerHTML=grid;
   const box=_keysData.box||{};
-  const pinEl=document.getElementById('keyBoxPin');if(pinEl)pinEl.value=box.pin||'';
+  _keyPinVisible=false;renderKeyPinView();
   const cntEl=document.getElementById('keyBoxCnt');if(cntEl)cntEl.value=box.count??0;
   updateKeysTotal();
 }
+// ── PIN ключницы: скрыт под «глазом», меняется только через окно с подтверждением ──
+let _keyPinVisible=false,_keyPinHideTimer=null,_kpNewPin='';
+function renderKeyPinView(){
+  const v=document.getElementById('keyBoxPinView'),eye=document.getElementById('keyBoxPinEye');
+  if(!v)return;
+  const pin=(_keysData.box||{}).pin||'';
+  v.classList.toggle('empty',!pin);
+  v.classList.toggle('masked',!!pin&&!_keyPinVisible);
+  v.textContent=!pin?'Код не задан':(_keyPinVisible?pin:'••••');
+  if(eye){
+    eye.classList.toggle('on',_keyPinVisible);
+    eye.innerHTML=_keyPinVisible?`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 5.1A10.6 10.6 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-2.2 3.1M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.6-.6 5-1.5"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>`:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    eye.title=eye.ariaLabel=_keyPinVisible?'Скрыть код':'Показать код';
+    eye.style.display=pin?'':'none';
+  }
+}
+window.toggleKeyPinVisible=function(){
+  _keyPinVisible=!_keyPinVisible;
+  clearTimeout(_keyPinHideTimer);
+  if(_keyPinVisible)_keyPinHideTimer=setTimeout(()=>{_keyPinVisible=false;renderKeyPinView();},10000);
+  renderKeyPinView();
+};
+window.openKeyPinEdit=function(){
+  if(!pvzId){toast('Сначала выберите ПВЗ');return;}
+  ['kpNew','kpNew2'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('kpErr').textContent='';
+  document.getElementById('kpNext').disabled=true;
+  kpBack();
+  document.getElementById('keyPinOv').classList.add('open');
+  setTimeout(()=>document.getElementById('kpNew')?.focus(),50);
+};
+window.closeKeyPinEdit=function(){
+  document.getElementById('keyPinOv').classList.remove('open');
+  _kpNewPin='';
+  ['kpNew','kpNew2'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+};
+window.kpInput=function(el){
+  el.value=el.value.replace(/\D/g,'').slice(0,4);
+  const a=document.getElementById('kpNew').value,b=document.getElementById('kpNew2').value;
+  const cur=(_keysData.box||{}).pin||'';
+  let err='';
+  if(a.length===4&&b.length===4&&a!==b)err='Коды не совпадают';
+  else if(a.length===4&&a===cur)err='Новый код совпадает с текущим';
+  document.getElementById('kpErr').textContent=err;
+  document.getElementById('kpNext').disabled=!(a.length===4&&a===b&&a!==cur);
+};
+window.kpNext=function(){
+  const a=document.getElementById('kpNew').value,b=document.getElementById('kpNew2').value;
+  if(!(a.length===4&&a===b))return;
+  _kpNewPin=a;
+  document.getElementById('kpOld').textContent=(_keysData.box||{}).pin||'—';
+  document.getElementById('kpNewView').textContent=a;
+  document.getElementById('kpStep1').style.display='none';
+  document.getElementById('kpStep2').style.display='';
+};
+window.kpBack=function(){
+  document.getElementById('kpStep1').style.display='';
+  document.getElementById('kpStep2').style.display='none';
+};
+window.kpSave=async function(){
+  if(!/^\d{4}$/.test(_kpNewPin)||!pvzId)return;
+  const btn=document.getElementById('kpSave');btn.disabled=true;
+  try{
+    const now=Date.now();
+    await set(ref(fdb,`/supplies/keys/${pvzId}/box/pin`),_kpNewPin);
+    await set(ref(fdb,`/supplies/keys/${pvzId}/box/pinChangedAt`),now);
+    const box=_keysData.box||(_keysData.box={});
+    box.pin=_kpNewPin;box.pinChangedAt=now;
+    _keyPinVisible=false;renderKeyPinView();
+    closeKeyPinEdit();
+    toast('Код ключницы изменён');
+  }catch(e){toast('Ошибка сохранения кода');}
+  btn.disabled=false;
+};
 function updateKeysTotal(){
   const t=document.getElementById('keysTotal');if(!t)return;
   const slots=_keysData.slots||{};
@@ -2055,7 +2190,6 @@ window.keyAdj=function(i,delta){
 };
 function onKeysInput(){
   const box=_keysData.box||(_keysData.box={});
-  box.pin=(document.getElementById('keyBoxPin')?.value||'').trim();
   box.count=Math.max(0,parseInt(document.getElementById('keyBoxCnt')?.value)||0);
   updateKeysTotal();scheduleKeysSave();
 }
@@ -2175,6 +2309,7 @@ window.confirmKeysCheck=async function(){
   document.getElementById('keysCheckOv').classList.remove('open');
   const real=document.getElementById('keysBody');
   if(real&&window._keysBodyHomeParent){window._keysBodyHomeParent.appendChild(real);window._keysBodyHomeParent=null;}
+  if(window._keysCheckTest){window._keysCheckTest=false;console.info('[testKeysCheck] закрыто, в базу ничего не записано');return;}
   const empId=window._keysCheckEmpId;
   const now=Date.now();
   _keysData.lastCheckedAt=now;
@@ -2187,6 +2322,17 @@ window.confirmKeysCheck=async function(){
     }
   }catch(e){}
   if(_keysCheckResolve){const r=_keysCheckResolve;_keysCheckResolve=null;r();}
+};
+
+// Тестовая команда для консоли: testKeysCheck() — показывает попап «Проверка ключей»
+// без открытия смены; «Информация верная» в этом режиме ничего не пишет в базу.
+window.testKeysCheck=function(){
+  if(!document.getElementById('keysBody')){console.warn('Блок ключей ещё не построен — выберите ПВЗ');return;}
+  window._keysCheckTest=true;
+  const real=document.getElementById('keysBody'),dest=document.getElementById('keysCheckBody');
+  if(real&&dest&&!window._keysBodyHomeParent){window._keysBodyHomeParent=real.parentElement;dest.appendChild(real);}
+  document.getElementById('keysCheckOv').classList.add('open');
+  return 'Попап «Проверка ключей» открыт (тестовый режим)';
 };
 
 // ── MKT INPUTS ──
