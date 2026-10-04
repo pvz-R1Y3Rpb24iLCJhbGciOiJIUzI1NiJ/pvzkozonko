@@ -968,6 +968,19 @@ async function set(r, val)  { return r.set(val); }
 async function get(r)       { const s = await r.once('value'); return s; }
 async function push(r, val) { const nr = r.push(); await nr.set(val); return nr; }
 
+// ── ЛОГИ В FIREBASE (/system_logs) — общий журнал панели и бота, читается прямо в консоли Firebase.
+// Не блокирует действие и не ломает UI: любая ошибка логирования глотается.
+function plog(msg, data){
+  try{
+    const ts=Date.now();
+    const key=`${ts}_p${Math.random().toString(36).slice(2,6)}`;
+    set(ref(fdb,`/system_logs/${key}`),{
+      src:'panel',pvz:pvzId||null,msk:`${mskNowParts().date} ${mskNowParts().time}`,
+      msg,data:data===undefined?null:data
+    }).catch(()=>{});
+  }catch(e){}
+}
+
 // ── MONTH NAMES ──────────────────────────────────────────────────────────────
 const RU_M_GEN=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 const RU_M_NOM=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
@@ -1313,6 +1326,7 @@ async function selectPvz(id,name,markets){
   const today=_shiftDay,ym=today.slice(0,7);
   unsubShift=onValue(ref(fdb,`/appData/tabs/${id}/monthData/${ym}/openCloseEvents/${today}`),s=>{
     shiftData=s.val()||{};
+    plog('снимок смены (слушатель)',{day:today,open:shiftData.open?shiftData.open.time||'есть':null,close:shiftData.close?shiftData.close.time||'есть':null,open_by:shiftData.open?.user_id??null});
     if(!pageBuilt){rS=true;tryBuild();}
     else{updateShiftUI();updStatsVals();checkPreClose();loadSchedule();}
   },()=>{shiftData={};rS=true;tryBuild();});
@@ -1887,6 +1901,7 @@ window.saveModShift=async function(){
         const openPath=`/appData/tabs/${pvzId}/monthData/${shiftYm}/openCloseEvents/${shiftDay}/open`;
         const newOpen={...shiftData.open,emp_id:emp1Id,user_id:emp1?.tgChatId||emp1?.vk_id||emp1Id,username:emp1?.fullName||emp1?.name||'Сотрудник'};
         await set(ref(fdb,openPath),newOpen);
+        plog('смена сотрудника: перезаписан /open',{day:shiftDay,newOpen});
         shiftData.open=newOpen;
       }
     }
@@ -1955,9 +1970,14 @@ window.doShift=async function(type,empId,empName,empVkId){
   if(type==='open')_shiftDay=tDay();
   const today=curShiftDay(),ym=today.slice(0,7),time=mskNowParts().time;
   const base=`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}`;
+  // closerId/closerName нужны и в ветке close, и ниже (локальный shiftData.close) —
+  // объявлены здесь, а не внутри else-if, иначе ReferenceError уже после записи в Firebase
+  let closerName='Сотрудник',closerId='web_staff';
   try{
+    plog(`doShift ${type}: запись начата`,{day:today,time,base});
     if(type==='open'){
       await set(ref(fdb,`${base}/open`),{time,user_id:empVkId||empId||'web_staff',username:empName||'Сотрудник',emp_id:empId});
+      plog('doShift open: /open записан',{day:today,time});
       await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'open_shift',user_id:empVkId||empId||'web_staff',emp_firebase_id:empId||'',username:empName||'Сотрудник',pvz_name:pvzName,emp_name:empName||'',ts:Date.now()});
       logShiftAudit('open',time,empVkId||empId,empName);
     }else if(type==='close'){
@@ -1990,9 +2010,10 @@ window.doShift=async function(type,empId,empName,empVkId){
           try{await set(ref(fdb,`${base}/${m}_received_count`),Math.max(0,parseInt(inp.value)||0));}catch(e){}
         }
       }
-      const closerName=window._todayEmpData?.fullName||window._todayEmpData?.name||'Сотрудник';
-      const closerId=window._todayEmpData?.tgChatId||window._todayEmpData?.vk_id||window._todayEmpData?.id||'web_staff';
+      closerName=window._todayEmpData?.fullName||window._todayEmpData?.name||'Сотрудник';
+      closerId=window._todayEmpData?.tgChatId||window._todayEmpData?.vk_id||window._todayEmpData?.id||'web_staff';
       await set(ref(fdb,`${base}/close`),{time,user_id:closerId,username:closerName});
+      plog('doShift close: /close записан',{day:today,time,closerId});
       await set(ref(fdb,`/supplies/pending_actions/${pvzId}`),{type:'close_shift',user_id:closerId,username:closerName,pvz_name:pvzName,ts:Date.now()});
       logShiftAudit('close',time,closerId,closerName);
     }
@@ -2014,6 +2035,7 @@ window.doShift=async function(type,empId,empName,empVkId){
         const snap=await get(ref(fdb,`/appData/tabs/${pvzId}/monthData/${ym}/openCloseEvents/${today}`));
         const fresh=snap.val()||{};
         const key=type==='open'?'open':'close';
+        plog(`проверка через 3с: ${key} ${fresh[key]?'на месте':'ПРОПАЛ'}`,{day:today,open:fresh.open??null,close:fresh.close??null});
         if(!fresh[key]){
           toast('⚠️ Данные о смене не подтверждены Firebase. Проверьте соединение.');
         } else {
@@ -2023,6 +2045,7 @@ window.doShift=async function(type,empId,empName,empVkId){
       }catch(e){toast('⚠️ Не удалось проверить запись: '+String(e));}
     },3000);
   }catch(e){
+    plog(`ОШИБКА doShift ${type}: ${String(e)}`,{day:today});
     showErr('Ошибка при записи смены: '+String(e));
     if(b)b.disabled=false;
   }
