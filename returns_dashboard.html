@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Сборка возвратов Ozon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+:root{
+  --bg:#FAFAF9;--card:#FFFFFF;--line:#E7E5E4;--line2:#F0EFEE;
+  --t1:#1C1917;--t2:#57534E;--t3:#A8A29E;
+  --ok:#15803D;--ok-bg:#ECFDF3;--bad:#B91C1C;--bad-bg:#FEF2F2;--none-bg:#F5F5F4;
+  --warn:#D97706;--warn-bg:#FFFBEB;--accent:#1C1917;
+  --mono:'JetBrains Mono',Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--t1);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:32px 16px 48px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+h1{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.sub{color:var(--t3);font-size:12.5px;margin-top:4px}
+.demo{color:var(--warn);font-weight:600}
+
+/* вкладки: подчёркивание, без полосы прокрутки */
+.tabs-wrap{position:relative;border-bottom:1px solid var(--line);margin-bottom:24px}
+.tabs-wrap::after{content:"";position:absolute;right:0;top:0;bottom:1px;width:40px;background:linear-gradient(90deg,transparent,var(--bg));pointer-events:none}
+.tabs{display:flex;gap:22px;overflow-x:auto;scrollbar-width:none;padding-right:40px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;padding:10px 0 11px;color:var(--t2);cursor:pointer;font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab:hover{color:var(--t1)}
+.tab.active{color:var(--t1);border-bottom-color:var(--accent);font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;background:#D6D3D1;flex:none}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+.layout{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:24px;align-items:start}
+.side{position:sticky;top:16px;display:flex;flex-direction:column;gap:16px}
+@media(max-width:880px){.layout{grid-template-columns:minmax(0,1fr)}.side{position:static}}
+
+/* календарь */
+.cal{padding:18px 18px 14px}
+.cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.cal-m{font-size:17px;font-weight:700;letter-spacing:-.01em;text-transform:capitalize}
+.cal-m span{color:var(--t3);font-weight:500;margin-left:4px}
+.navs{display:flex;gap:4px}
+.nav{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--t2);cursor:pointer;font-size:15px;line-height:1}
+.nav:hover:not(:disabled){background:var(--none-bg)}
+.nav:disabled{opacity:.35;cursor:default}
+.wd,.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.wd{margin-bottom:6px}
+.wd span{text-align:center;font-size:11px;color:var(--t3);font-weight:500}
+.cell{height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer;position:relative;font-variant-numeric:tabular-nums}
+.cell.none{background:var(--none-bg);color:var(--t3)}
+.cell.ok{background:var(--ok-bg);color:var(--ok)}
+.cell.bad{background:var(--bad-bg);color:var(--bad)}
+.cell.future{color:#D6D3D1;cursor:default;font-weight:500}
+.cell.blank{visibility:hidden}
+.cell.today{box-shadow:inset 0 0 0 1.5px var(--t1)}
+.cell:not(.future):not(.blank):hover{filter:brightness(.97)}
+.cell .mk{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--warn)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:11.5px;color:var(--t2)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:9px;height:9px;border-radius:3px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);margin:14px -18px -14px}
+.stat{padding:12px 0;text-align:center;font-size:11px;color:var(--t3)}
+.stat+.stat{border-left:1px solid var(--line)}
+.stat b{display:block;font-size:18px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
+.stat.r b{color:var(--bad)}
+
+/* реестр */
+.reg-h{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;font-weight:600;font-size:13.5px}
+.cnt{font-size:12px;font-weight:600;color:var(--t3);background:var(--none-bg);border-radius:20px;padding:1px 9px}
+.cnt.r{color:var(--bad);background:var(--bad-bg)}
+details.reg-lost>summary{list-style:none;cursor:pointer}
+details.reg-lost>summary::-webkit-details-marker{display:none}
+details.reg-lost>summary span:first-child::after{content:" ›";color:var(--t3)}
+details.reg-lost[open]>summary span:first-child::after{content:" ⌄"}
+.clar{padding:14px 18px}
+.clar-btn{width:100%;background:var(--t1);color:#fff;border:none;border-radius:10px;padding:10px 14px;font:600 13px Inter,sans-serif;cursor:pointer}
+.clar-btn:disabled{background:var(--none-bg);color:var(--t3);cursor:default}
+.clar-st{font-size:11.5px;color:var(--t3);margin-top:8px;line-height:1.5}
+.shot{position:fixed;left:-10000px;top:0;width:560px;background:#fff;padding:22px 4px 14px;font-family:Inter,sans-serif;color:var(--t1)}
+.shot-h{display:flex;justify-content:space-between;align-items:flex-start;padding:0 18px 14px}
+.shot-t{font-size:18px;font-weight:700;letter-spacing:-.01em}.shot-s{font-size:13px;color:var(--t2);margin-top:2px}
+.shot-d{font-size:12px;color:var(--t3)}
+.shot-more{font-size:12px;color:var(--t3);padding:10px 18px 0}
+.reg-empty{padding:0 18px 16px;font-size:12.5px;color:var(--t3)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--t3);font-weight:500;font-size:11px;padding:8px 18px;border-top:1px solid var(--line)}
+td{padding:9px 18px;border-top:1px solid var(--line2);vertical-align:top}
+td.mono{font-family:var(--mono);font-size:12px;cursor:pointer}
+td.over{color:var(--bad);font-weight:600}
+td.dt{white-space:nowrap;color:var(--t2)}
+.rn{font-family:Inter,sans-serif;font-size:11.5px;color:var(--t3);margin-top:2px;cursor:default}
+
+/* список дней */
+.list-h{font-size:13px;font-weight:600;color:var(--t2);margin-bottom:10px}
+.days{overflow:hidden}
+.day{padding:14px 18px;border-top:1px solid var(--line2);scroll-margin-top:16px}
+.day:first-child{border-top:none}
+.day.flash{animation:flash 1.4s}
+@keyframes flash{0%{background:#F5F5F4}100%{background:transparent}}
+.day-h{display:flex;align-items:center;gap:12px}
+.day-d{font-weight:600;font-size:13.5px;min-width:96px}
+.day-d span{color:var(--t3);font-weight:500;margin-left:5px;font-size:12px}
+.day-s{color:var(--t2);font-size:12.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{flex:none;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:20px}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+.pill.none{background:var(--none-bg);color:var(--t3)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.det{margin:10px 0 0 108px}
+@media(max-width:600px){.det{margin-left:0}.day-d{min-width:0}.day-h{flex-wrap:wrap}.day-s{order:3;flex-basis:100%;white-space:normal}}
+.lbl{font-size:11px;color:var(--t3);font-weight:500;margin:10px 0 6px}
+.lbl:first-child{margin-top:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-size:12px;border:1px solid #FECACA;color:var(--bad);background:#fff;padding:2px 8px;border-radius:6px;cursor:pointer}
+.chip.w{border-color:#FDE68A;color:var(--warn)}
+.chip:hover{background:var(--bad-bg)}
+.more-chips{display:contents}.chips:not(.open) .more-chips{display:none}.chips.open .more-btn{display:none}
+.more-btn{font:500 12px Inter,sans-serif;color:var(--t2);background:var(--none-bg);border:none;border-radius:6px;padding:3px 9px;cursor:pointer}
+.more-btn:hover{color:var(--t1)}.chip.w:hover{background:var(--warn-bg)}
+.note{font-size:12.5px;color:var(--t2)}
+.log{display:flex;flex-direction:column;gap:4px}
+.log-row{display:grid;grid-template-columns:40px 140px 1fr auto;gap:10px;font-size:12.5px;align-items:baseline}
+.log-row .t{font-family:var(--mono);font-size:11.5px;color:var(--t3)}
+.log-row .w{color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-row .x{white-space:pre-wrap;word-break:break-word}
+.log-row .st{font-size:11px;color:var(--t3)}
+.st.shortage{color:var(--bad)}.st.unclear{color:var(--warn)}.st.ok{color:var(--ok)}
+@media(max-width:600px){.log-row{grid-template-columns:40px 1fr auto}.log-row .x{grid-column:2/-1}}
+
+/* сводка */
+.sum{overflow:hidden}
+.sum-row{display:grid;grid-template-columns:minmax(0,1fr) auto 64px 76px 70px;gap:20px;align-items:center;padding:13px 18px;border-top:1px solid var(--line2);cursor:pointer}
+.sum-row:first-child{border-top:none}
+.sum-row:hover{background:#FCFCFB}
+.sum-hd{cursor:default;font-size:11px;color:var(--t3);font-weight:500;padding:10px 18px}
+.sum-hd:hover{background:none}
+.sum-name{font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.strip{display:flex;gap:3px}
+.strip i{width:12px;height:12px;border-radius:3px;background:var(--none-bg)}
+.strip i.ok{background:#86EFAC}.strip i.bad{background:#FCA5A5}
+.num{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.num.r{color:var(--bad)}.num.z{color:var(--t3);font-weight:500}
+@media(max-width:700px){.sum-row{grid-template-columns:minmax(0,1fr) 44px 60px 54px;gap:10px}.sum-row .strip{grid-column:1/-1;grid-row:2}}
+.empty{text-align:center;color:var(--t3);padding:36px;font-size:13px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--t1);color:#fff;padding:8px 16px;border-radius:10px;font-size:12.5px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Сборка возвратов Ozon</h1>
+      <div class="sub" id="sub">Отчёты «Отгрузка собрана…» из рабочих чатов и сверка с Турбо ПВЗ · <span id="upd">загрузка…</span></div>
+    </div>
+  </header>
+  <div class="tabs-wrap"><div class="tabs" id="tabs"></div></div>
+  <div id="view"><div class="empty">Загрузка…</div></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const cfg={apiKey:"AIzaSyDgpd51erVNy_PwSbYTXPISALNMmYtgTN8",authDomain:"kozonko-9bff6.firebaseapp.com",databaseURL:"https://kozonko-9bff6-default-rtdb.europe-west1.firebasedatabase.app",projectId:"kozonko-9bff6"};
+firebase.initializeApp(cfg);
+const db=firebase.database();
+const DEMO=new URLSearchParams(location.search).has('demo');
+
+// Регламент действует с этой даты — раньше дни не помечаем как «нет отчёта»
+const RULE_START='2026-10-21';
+// дольше 4 суток в «Отправить на склад» — считаем утерянным: не красит день, отдельный раздел реестра
+const LOST_H=96;
+const ageOf=h=>h.age_h!=null?h.age_h:(h.first_seen?(Date.now()-new Date(h.first_seen))/36e5:null);
+const isLost=h=>!!h.lost||(ageOf(h)??0)>LOST_H;
+const MONTHS=['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+const MONTHS_G=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const WD=['вс','пн','вт','ср','чт','пт','сб'];
+
+let pvzs=[];          // [{id,name}]
+let reports={}, remains={}, hanging={}, clarify={};
+let employees=[], assignCache={};   // `${pvz}_${ym}` → {date:{...}}
+let cur='__summary';
+let viewYM=ymOf(todayStr());
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function pad(n){return String(n).padStart(2,'0')}
+function todayStr(){const d=new Date(Date.now()+(new Date().getTimezoneOffset()+180)*60000);return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+function ymOf(d){return d.slice(0,7)}
+function daysIn(ym){const [y,m]=ym.split('-').map(Number);return new Date(y,m,0).getDate()}
+function shiftYM(ym,k){let [y,m]=ym.split('-').map(Number);m+=k;while(m<1){m+=12;y--}while(m>12){m-=12;y++}return `${y}-${pad(m)}`}
+function addDays(ds,k){const d=new Date(ds+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+k);return d.toISOString().slice(0,10)}
+// длинные списки ШК — первые 8, остальное по клику
+const CHIP_CAP=8;
+function capChips(arr){
+  if(arr.length<=CHIP_CAP)return arr.join('');
+  return arr.slice(0,CHIP_CAP).join('')+`<span class="more-chips">${arr.slice(CHIP_CAP).join('')}</span><button class="more-btn" onclick="this.parentNode.classList.add('open')">ещё ${arr.length-CHIP_CAP}</button>`;
+}
+function ageFmt(h){return h<48?Math.round(h)+' ч':Math.floor(h/24)+' дн'}
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),1400)}
+function copy(t){navigator.clipboard?.writeText(t).then(()=>toast('Скопировано: '+t),()=>toast(t))}
+
+// ── статус дня ───────────────────────────────────────────────────────────────
+// Решает ПОСЛЕДНИЙ распознанный отчёт за день (если сначала написали недостачи,
+// а потом нашли и написали «недостач нет» — день зелёный). Нарушения срока из
+// Турбо ПВЗ красят день в красный независимо от отчёта.
+function dayInfo(pvz,date){
+  const day=(reports[pvz]||{})[date]||{};
+  const entries=Object.values(day.entries||{}).sort((a,b)=>a.ts-b.ts);
+  const valid=entries.filter(e=>e.status==='ok'||e.status==='shortage');
+  const last=valid[valid.length-1];
+  const rem=(remains[pvz]||{})[date];
+  const overdue=rem&&Array.isArray(rem.overdue)?rem.overdue.filter(o=>typeof o==='string'||!isLost(o)):[];
+  let status='none';
+  if(last) status=last.status==='ok'?'ok':'bad';
+  if(overdue.length) status='bad';
+  return {entries,last,status,overdue,rem,shift:day.shift||null,unclearOnly:!last&&entries.length>0};
+}
+
+// ── загрузка ─────────────────────────────────────────────────────────────────
+db.ref('/supplies/pvz_list').on('value',s=>{
+  const raw=s.val()||{};
+  pvzs=Object.entries(raw).filter(([id,v])=>v&&Array.isArray(v.marketplaces)&&v.marketplaces.includes('ozon'))
+    .map(([id,v])=>({id,name:v.pvz_name||id})).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+  render();
+});
+if(!DEMO){
+  db.ref('/supplies/returns_reports').on('value',s=>{reports=s.val()||{};stamp();render()});
+  db.ref('/supplies/returns_remains').on('value',s=>{remains=s.val()||{};render()});
+  db.ref('/supplies/returns_hanging').on('value',s=>{hanging=s.val()||{};render()});
+  db.ref('/supplies/returns_clarify').on('value',s=>{clarify=s.val()||{};render()});
+}else stamp();
+db.ref('/appData/employees').once('value').then(s=>{const v=s.val()||[];employees=(Array.isArray(v)?v:Object.values(v)).filter(Boolean);render()});
+
+function stamp(){document.getElementById('upd').textContent='обновлено '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}
+
+// График смен на месяц — для дней без отчёта (бот пишет смену только вместе с отчётом)
+function loadAssign(pvz,ym){
+  const k=pvz+'_'+ym;
+  if(assignCache[k]!==undefined)return;
+  assignCache[k]=null;
+  db.ref(`/appData/tabs/${pvz}/monthData/${ym}/assignments`).once('value').then(s=>{assignCache[k]=s.val()||{};render()}).catch(()=>{assignCache[k]={}});
+}
+function empName(id){const e=employees.find(e=>e.id===id);return e?(e.fullName||e.name||id):id}
+function shiftFor(pvz,date,info){
+  if(info.shift&&info.shift.length)return info.shift;
+  const a=(assignCache[pvz+'_'+ymOf(date)]||{})[date];
+  if(!a||!a.employeeId)return null;
+  const r=[empName(a.employeeId)];
+  if(a.second&&a.second.employeeId)r.push(empName(a.second.employeeId));
+  return r;
+}
+
+// ── отрисовка ────────────────────────────────────────────────────────────────
+function render(){
+  renderTabs();
+  if(cur==='__summary')renderSummary();else renderPvz(cur);
+}
+function lastStatus(pvz){
+  let ds=todayStr();
+  for(let i=0;i<3;i++){const st=dayInfo(pvz,ds).status;if(st!=='none')return st;ds=addDays(ds,-1)}
+  return 'none';
+}
+function renderTabs(){
+  const el=document.getElementById('tabs'), x=el.scrollLeft;
+  el.innerHTML=`<div class="tab ${cur==='__summary'?'active':''}" onclick="go('__summary')">Все ПВЗ</div>`+
+    pvzs.map(p=>`<div class="tab ${cur===p.id?'active':''}" onclick="go('${p.id}')"><span class="dot ${lastStatus(p.id)}"></span>${esc(p.name)}</div>`).join('');
+  el.scrollLeft=x;
+}
+function go(id){cur=id;viewYM=ymOf(todayStr());render();window.scrollTo({top:0,behavior:'smooth'})}
+
+function renderSummary(){
+  const t=todayStr(), ym=ymOf(t);
+  const days=[];for(let i=13;i>=0;i--)days.push(addDays(t,-i));
+  if(!pvzs.length){document.getElementById('view').innerHTML='<div class="empty">Нет ПВЗ с Ozon в /supplies/pvz_list</div>';return}
+  document.getElementById('view').innerHTML=`<div class="card sum">
+    <div class="sum-row sum-hd"><span>Пункт выдачи</span><span>Последние 14 дней</span><span class="num" style="font-weight:500">Сбоев</span><span class="num" style="font-weight:500">Просрочка</span><span class="num" style="font-weight:500">Утеряны</span></div>`+
+  pvzs.map(p=>{
+    const strip=days.map(ds=>{const st=dayInfo(p.id,ds).status;return `<i class="${st}" title="${ds}: ${st==='ok'?'всё в порядке':st==='bad'?'есть проблемы':'нет данных'}"></i>`}).join('');
+    let bad=0;for(let i=1;i<=daysIn(ym);i++){if(dayInfo(p.id,`${ym}-${pad(i)}`).status==='bad')bad++}
+    const hv=Object.values(hanging[p.id]||{}), lost=hv.filter(isLost).length, late=hv.length-lost;
+    return `<div class="sum-row" onclick="go('${p.id}')"><div class="sum-name">${esc(p.name)}</div><div class="strip">${strip}</div>
+      <div class="num ${bad?'r':'z'}">${bad}</div><div class="num ${late?'r':'z'}">${late}</div><div class="num ${lost?'':'z'}">${lost}</div></div>`;
+  }).join('')+`</div>`;
+}
+
+function renderPvz(pvz){
+  const p=pvzs.find(x=>x.id===pvz);
+  if(!p){cur='__summary';return render()}
+  loadAssign(pvz,viewYM);
+  const t=todayStr(), ym=viewYM, n=daysIn(ym);
+  const [y,m]=ym.split('-').map(Number);
+  const first=(new Date(y,m-1,1).getDay()+6)%7; // пн=0
+  let cells='';for(let i=0;i<first;i++)cells+='<div class="cell blank"></div>';
+  let cOk=0,cBad=0,cNone=0,cShort=0;
+  for(let i=1;i<=n;i++){
+    const ds=`${ym}-${pad(i)}`;
+    if(ds>t){cells+=`<div class="cell future">${i}</div>`;continue}
+    const info=dayInfo(pvz,ds);
+    if(info.status==='ok')cOk++;else if(info.status==='bad')cBad++;else cNone++;
+    if(info.last&&info.last.status==='shortage')cShort+=(info.last.barcodes||[]).length;
+    const mk=info.unclearOnly||info.entries.length>1?'<span class="mk"></span>':'';
+    const tip=info.status==='ok'?'всё в порядке':info.status==='bad'?'есть проблемы':'нет данных';
+    cells+=`<div class="cell ${info.status} ${ds===t?'today':''}" onclick="jump('${ds}')" title="${i} ${MONTHS_G[m-1]}: ${tip}">${i}${mk}</div>`;
+  }
+  const hang=Object.entries(hanging[pvz]||{}).map(([bc,v])=>({bc,...v})).sort((a,b)=>(ageOf(b)||0)-(ageOf(a)||0));
+  const lost=hang.filter(isLost), late=hang.filter(h=>!isLost(h));
+
+  // дни: от сегодняшнего (или последнего дня прошлого месяца) к первому
+  const lastDay=ym===ymOf(t)?Number(t.slice(8)):(ym<ymOf(t)?n:0);
+  let list='';
+  for(let i=lastDay;i>=1;i--){
+    const ds=`${ym}-${pad(i)}`, info=dayInfo(pvz,ds), shift=shiftFor(pvz,ds,info);
+    const dt=new Date(ds+'T12:00:00');
+    let pill;
+    if(info.status==='ok')pill='<span class="pill ok">Всё в порядке</span>';
+    else if(info.status==='bad')pill='<span class="pill bad">Есть проблемы</span>';
+    else if(info.unclearOnly)pill='<span class="pill warn">Не по шаблону</span>';
+    else pill=`<span class="pill none">${shift&&ds>=RULE_START&&ds<t?'Нет отчёта':'Нет данных'}</span>`;
+
+    let det='';
+    if(info.last&&info.last.status==='shortage')
+      det+=`<div class="lbl">Не найдены · ${info.last.barcodes.length}</div><div class="chips">${capChips(info.last.barcodes.map(b=>`<span class="chip" onclick="copy('${esc(b)}')">${esc(b)}</span>`))}</div>`;
+    if(info.overdue.length)
+      det+=`<div class="lbl">Турбо ПВЗ · не отгружено вовремя · ${info.overdue.length}${info.rem.checked?` · проверка в ${esc(info.rem.checked)}`:''}</div><div class="chips">${capChips(info.overdue.map(o=>{const b=typeof o==='string'?o:o.barcode;const tip=[o.name,o.since?'в статусе с '+o.since:'',o.age_h!=null?ageFmt(o.age_h):'',o.expired?'Ozon: нарушен срок':''].filter(Boolean).join(' · ');return `<span class="chip w" onclick="copy('${esc(b)}')" title="${esc(tip)}">${esc(b)}${o.age_h!=null?` <span style="opacity:.7">${ageFmt(o.age_h)}</span>`:''}</span>`}))}</div>`;
+    else if(info.rem)
+      det+=`<div class="lbl">Турбо ПВЗ${info.rem.checked?` · проверка в ${esc(info.rem.checked)}`:''}</div><div class="note">Просрочек нет${info.rem.total!=null?` · к отправке ${info.rem.total}`:''}</div>`;
+    if(info.rem&&info.rem.lost)
+      det+=`<div class="note" style="color:var(--t3);margin-top:6px">+ ${info.rem.lost} висят больше 4 дней — в реестре «Утеряны»</div>`;
+    // один нормальный отчёт — одной строкой; лог показываем при повторах/ошибках
+    const simple=info.entries.length===1&&info.entries[0].status!=='unclear';
+    if(simple)
+      det+=`<div class="note" style="color:var(--t3)">отчёт ${esc(info.entries[0].time)} · ${esc(info.entries[0].from_name)}</div>`;
+    else if(info.entries.length)
+      det+=`<div class="lbl">Сообщения · ${info.entries.length}</div><div class="log">${info.entries.map(e=>`<div class="log-row"><span class="t">${esc(e.time)}</span><span class="w" title="${esc(e.from_name)}">${esc(e.from_name)}</span><span class="x">${esc(e.text)}</span><span class="st ${e.status}">${e.status==='ok'?'недостач нет':e.status==='shortage'?'недостачи':'не распознано'}</span></div>`).join('')}</div>`;
+
+    list+=`<div class="day" id="d-${ds}"><div class="day-h"><div class="day-d">${dt.getDate()} ${MONTHS_G[dt.getMonth()]}<span>${ds===t?'сегодня':WD[dt.getDay()]}</span></div>
+      <div class="day-s">${shift?esc(shift.join(', ')):'<span style="color:var(--t3)">смена не назначена</span>'}</div>${pill}</div>${det?`<div class="det">${det}</div>`:''}</div>`;
+  }
+  if(!list)list='<div class="empty">В этом месяце ещё нет дней</div>';
+
+  document.getElementById('view').innerHTML=`
+  <div class="layout">
+    <div class="side">
+      <div class="card cal">
+        <div class="cal-h">
+          <div class="cal-m">${MONTHS[m-1]}<span>${y}</span></div>
+          <div class="navs"><button class="nav" onclick="nav(-1)" aria-label="Предыдущий месяц">‹</button><button class="nav" onclick="nav(1)" ${ym>=ymOf(t)?'disabled':''} aria-label="Следующий месяц">›</button></div>
+        </div>
+        <div class="wd"><span>пн</span><span>вт</span><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>вс</span></div>
+        <div class="grid">${cells}</div>
+        <div class="legend"><span><i style="background:var(--ok-bg);box-shadow:inset 0 0 0 1px #BBF7D0"></i>всё в порядке</span><span><i style="background:var(--bad-bg);box-shadow:inset 0 0 0 1px #FECACA"></i>сбои</span><span><i style="background:var(--none-bg);box-shadow:inset 0 0 0 1px var(--line)"></i>нет данных</span><span><i style="background:var(--warn);width:5px;height:5px;border-radius:50%"></i>повтор / не по шаблону</span></div>
+        <div class="stats">
+          <div class="stat"><b>${cOk}</b>в порядке</div>
+          <div class="stat ${cBad?'r':''}"><b>${cBad}</b>со сбоями</div>
+          <div class="stat"><b>${cNone}</b>без данных</div>
+          <div class="stat ${cShort?'r':''}"><b>${cShort}</b>ШК недостач</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="reg-h"><span>Не отгружено вовремя</span><span class="cnt ${late.length?'r':''}">${late.length}</span></div>
+        ${late.length?regTable(late,t):'<div class="reg-empty">Пусто. Товары в «Отправить на склад» от 24 ч до 4 дней — по сверке с Турбо ПВЗ.</div>'}
+      </div>
+      <details class="card reg-lost" ${lost.length&&lost.length<=5?'open':''}>
+        <summary class="reg-h"><span>Утеряны · больше 4 дней</span><span class="cnt">${lost.length}</span></summary>
+        ${lost.length?regTable(lost,t):'<div class="reg-empty">Пусто.</div>'}
+      </details>
+      ${clarifyBlock(pvz,p,hang)}
+    </div>
+    <div>
+      <div class="list-h">${esc(p.name)}</div>
+      <div class="card days">${list}</div>
+    </div>
+  </div>`;
+}
+// ── запрос уточнений в чат ПВЗ ──────────────────────────────────────────────
+// Картинка со списком (только висящие ≤ CLARIFY_MAX_H — более старые не шлём)
+// → /supplies/returns_clarify/{pvz}/{ts}; бот jobparc отправляет фото с текстом.
+const CLARIFY_MAX_H=168;
+const CLARIFY_TEXT='Обнаружены ненормативы возвратов. Нужны уточнения по данным товарам. Они будут отправлены сегодня?';
+const cleanNote=n=>String(n||'').replace(/add_to_trip/g,'добавить в рейс');
+function clarifyItems(hang){return hang.filter(h=>{const a=ageOf(h);return a!=null&&a<=CLARIFY_MAX_H}).sort((a,b)=>ageOf(b)-ageOf(a))}
+function clarifyBlock(pvz,p,hang){
+  const items=clarifyItems(hang);
+  const reqs=Object.values(clarify[pvz]||{}).sort((a,b)=>b.created-a.created);
+  const last=reqs[0];
+  let st='';
+  if(last){
+    const tm=new Date(last.sent_at||last.created).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    st=last.status==='sent'?`Последний запрос отправлен ${tm} · ${last.count} шт`:last.status==='error'?`Ошибка отправки ${tm}: ${esc(last.error||'')}`:`В очереди у бота с ${tm}…`;
+  }
+  return `<div class="card clar"><button class="clar-btn" ${items.length&&!(last&&last.status==='pending')?'':'disabled'} onclick="sendClarify('${pvz}')">Запросить уточнения в чат${items.length?` · ${items.length} шт`:''}</button>
+    <div class="clar-st">${items.length?'Товары из реестра, которые висят не дольше 7 дней — картинка + вопрос в рабочий чат пункта.':'Нет товаров не старше 7 дней — запрашивать нечего.'}${st?`<br>${st}`:''}</div></div>`;
+}
+async function sendClarify(pvz){
+  const p=pvzs.find(x=>x.id===pvz), items=clarifyItems(Object.entries(hanging[pvz]||{}).map(([bc,v])=>({bc,...v})));
+  if(!items.length)return;
+  if(!confirm(`Отправить в чат «${p.name}» картинку с ${items.length} товарами и вопрос:
+
+${CLARIFY_TEXT}`))return;
+  toast('Готовлю картинку…');
+  const shown=items.slice(0,40);
+  const node=document.createElement('div');
+  node.className='shot';
+  const now=new Date();
+  node.innerHTML=`<div class="shot-h"><div><div class="shot-t">Ненормативы возвратов</div><div class="shot-s">${esc(p.name)}</div></div><div class="shot-d">${now.toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>
+    <table><tr><th>ШК</th><th>С</th><th style="text-align:right">Висит</th></tr>${shown.map(h=>{const a=ageOf(h);const note=cleanNote(h.note||'');return `<tr><td class="mono">${esc(h.bc)}${note?`<div class="rn">${esc(note)}</div>`:''}</td><td class="dt">${h.first_seen?esc(h.first_seen.slice(8)+'.'+h.first_seen.slice(5,7)):''}</td><td class="over" style="text-align:right;white-space:nowrap">${ageFmt(a)}</td></tr>`}).join('')}</table>
+    ${items.length>shown.length?`<div class="shot-more">и ещё ${items.length-shown.length} шт</div>`:''}`;
+  document.body.appendChild(node);
+  try{
+    const canvas=await html2canvas(node,{scale:2,backgroundColor:'#ffffff',logging:false});
+    const image=canvas.toDataURL('image/png');
+    await db.ref(`/supplies/returns_clarify/${pvz}/${now.getTime()}`).set({created:now.getTime(),status:'pending',count:items.length,text:CLARIFY_TEXT,image,barcodes:items.map(h=>h.bc)});
+    toast('Отправлено боту — уйдёт в чат в течение минуты');
+  }catch(e){toast('Не получилось: '+e)}
+  finally{node.remove()}
+}
+function regTable(rows,t){
+  return `<table><tr><th>ШК</th><th>С</th><th style="text-align:right">Висит</th></tr>${rows.map(h=>{
+    const ageH=ageOf(h);
+    const note=[cleanNote(h.note||h.name||''),h.claim&&!/претенз/i.test(h.note||'')?'претензия':''].filter(Boolean).join(' · ');
+    return `<tr><td class="mono" onclick="copy('${esc(h.bc)}')">${esc(h.bc)}${note?`<div class="rn">${esc(note)}</div>`:''}</td><td class="dt">${h.first_seen?esc(h.first_seen.slice(8)+'.'+h.first_seen.slice(5,7)):''}</td><td class="${ageH>24&&!isLost(h)?'over':''}" style="text-align:right;white-space:nowrap">${ageH!=null?ageFmt(ageH):''}</td></tr>`}).join('')}</table>`;
+}
+function nav(k){viewYM=shiftYM(viewYM,k);render()}
+function jump(ds){const e=document.getElementById('d-'+ds);if(!e)return;e.scrollIntoView({behavior:'smooth',block:'center'});e.classList.remove('flash');void e.offsetWidth;e.classList.add('flash')}
+
+// ?demo=1 — подставляет выдуманные отчёты вместо реальных (ничего не пишет в БД)
+if(DEMO){
+  document.getElementById('sub').insertAdjacentHTML('beforeend',' · <span class="demo">демо-данные</span>');
+  const fill=()=>{
+    const t=todayStr();
+    pvzs.forEach((p,pi)=>{
+      const r={},rm={};
+      for(let i=0;i<20;i++){
+        const ds=addDays(t,-i), k=(i*7+pi*3)%10; if(k===0)continue;
+        const ts=new Date(ds+'T17:00:00Z').getTime();
+        const e={};
+        if(k===3)e.a={ts,time:'20:41',from_name:'Анна Иванова',text:'Отгрузка собрана, недостачи: ii4102938475, ii4102938476',status:'shortage',barcodes:['ii4102938475','ii4102938476']};
+        else if(k===6){e.a={ts,time:'20:10',from_name:'Олег Петров',text:'отгрузка собрана',status:'unclear',barcodes:[]};e.b={ts:ts+6e5,time:'20:20',from_name:'Олег Петров',text:'Отгрузка собрана, недостач нет',status:'ok',barcodes:[]}}
+        else e.a={ts,time:'20:3'+k,from_name:'Мария Смирнова',text:'Отгрузка собрана, недостач нет',status:'ok',barcodes:[]};
+        r[ds]={shift:[['Иванова Анна','Петров Олег','Смирнова Мария'][(i+pi)%3]],entries:e};
+        if(k===8)rm[ds]={total:14,checked:'10:00',overdue:[{barcode:'ii3999000111',name:'Кроссовки',since:ds+' 13:33',age_h:44.5,expired:true}]};
+      }
+      reports[p.id]=r;remains[p.id]=rm;
+      if(pi%2===0)hanging[p.id]={'ii3999000111':{first_seen:'2026-10-19',age_h:44.5,note:'Кроссовки, Ozon: нарушен срок, ждёт курьера'},'ii3888222333':{first_seen:'2026-09-30',age_h:500,lost:true,note:'Плед флисовый, ждёт курьера'}};
+    });
+    render();
+  };
+  const w=setInterval(()=>{if(pvzs.length){clearInterval(w);fill()}},300);
+}
+</script>
+</body>
+</html>
