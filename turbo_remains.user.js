@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kozonko · Сверка возвратов Ozon
 // @namespace    kozonko
-// @version      2.2
+// @version      2.3
 // @description  Турбо ПВЗ: сверка «Отправить на склад» по всем пунктам (дашборд возвратов) и контроль просрочки приёмки с тревогой в чат ПВЗ
 // @match        https://turbo-pvz.ozon.ru/*
 // @grant        none
@@ -238,13 +238,18 @@
     const lines = [];
     let writeErr = 0;
     for (const [pvz, slot] of Object.entries(byPvz)) {
-      const isLost = it => it.age != null && it.age > LOST_HOURS;
-      const overdue = slot.items.filter(it => !isLost(it) && (it.x || (it.age != null && it.age > OVERDUE_HOURS))).sort((a, b) => a.since.localeCompare(b.since));
+      // «ждёт курьера» — уже добавлен в перевозку, с товаром всё в порядке (Сергей, 24.10):
+      // не просрочка и не утеря, даже с флагом Ozon isExpired
+      const inTrip = it => it.g.includes(TAGS.GRPC_REMAIN_TAG_WAIT_FOR_COURIER);
+      const isLost = it => !inTrip(it) && it.age != null && it.age > LOST_HOURS;
+      const overdue = slot.items.filter(it => !inTrip(it) && !isLost(it) && (it.x || (it.age != null && it.age > OVERDUE_HOURS))).sort((a, b) => a.since.localeCompare(b.since));
       const lost = slot.items.filter(isLost);
+      const waiting = slot.items.filter(inTrip).length;
       const remains = {
         checked_at: now.getTime(), checked: msk(now).slice(11), total: slot.items.length, codes: slot.codes,
         overdue: overdue.map(it => ({ barcode: it.b, name: it.n, since: it.since, age_h: it.age, expired: it.x, code: it.code })),
         lost: lost.length,
+        in_trip: waiting,
       };
       const hanging = {};
       for (const it of overdue.concat(lost)) {
@@ -257,7 +262,7 @@
         await put(`/supplies/returns_remains/${pvz}/${date}`, remains);
         await put(`/supplies/returns_hanging/${pvz}`, Object.keys(hanging).length ? hanging : null);
       } catch (e) { writeErr++; s.errors[pvz] = 'запись: ' + e; }
-      lines.push(`${slot.codes.join(' + ')}: ${slot.items.length} к отправке, просрочено ${overdue.length}, утеряны (> 4 дн) ${lost.length}`);
+      lines.push(`${slot.codes.join(' + ')}: ${slot.items.length} к отправке, просрочено ${overdue.length}, утеряны (> 4 дн) ${lost.length}, ждут курьера ${waiting}`);
     }
     lastSet({ returns: date });
     report(s, `Сверка возвратов готова (${msk(now).slice(11)})${writeErr ? ' — ЕСТЬ ОШИБКИ ЗАПИСИ' : ', данные в дашборде'}`, lines);
