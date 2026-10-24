@@ -178,6 +178,11 @@ const RULE_START='2026-10-21';
 const LOST_H=96;
 const ageOf=h=>h.age_h!=null?h.age_h:(h.first_seen?(Date.now()-new Date(h.first_seen))/36e5:null);
 const isLost=h=>!!h.lost||(ageOf(h)??0)>LOST_H;
+// «ждёт курьера» — уже в перевозке, проблем нет: не показываем как просрочку/утерю
+// (новые сверки такие товары не пишут; фильтр — для данных до 24.10)
+const inTrip=h=>/ждёт курьера/.test(h.note||'');
+const tripOf=pvz=>new Set(Object.entries(hanging[pvz]||{}).filter(([,v])=>inTrip(v)).map(([k])=>k));
+const hangOf=pvz=>Object.entries(hanging[pvz]||{}).filter(([,v])=>!inTrip(v));
 const MONTHS=['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
 const MONTHS_G=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 const WD=['вс','пн','вт','ср','чт','пт','сб'];
@@ -215,7 +220,8 @@ function dayInfo(pvz,date){
   const valid=entries.filter(e=>e.status==='ok'||e.status==='shortage');
   const last=valid[valid.length-1];
   const rem=(remains[pvz]||{})[date];
-  const overdue=rem&&Array.isArray(rem.overdue)?rem.overdue.filter(o=>typeof o==='string'||!isLost(o)):[];
+  const trip=tripOf(pvz);
+  const overdue=rem&&Array.isArray(rem.overdue)?rem.overdue.filter(o=>typeof o==='string'||(!isLost(o)&&!trip.has(String(o.barcode).replace(/[.#$%\[\]\/]/g,'_')))):[];
   let status='none';
   if(last) status=last.status==='ok'?'ok':'bad';
   if(overdue.length) status='bad';
@@ -283,7 +289,7 @@ function renderSummary(){
   pvzs.map(p=>{
     const strip=days.map(ds=>{const st=dayInfo(p.id,ds).status;return `<i class="${st}" title="${ds}: ${st==='ok'?'всё в порядке':st==='bad'?'есть проблемы':'нет данных'}"></i>`}).join('');
     let bad=0;for(let i=1;i<=daysIn(ym);i++){if(dayInfo(p.id,`${ym}-${pad(i)}`).status==='bad')bad++}
-    const hv=Object.values(hanging[p.id]||{}), lost=hv.filter(isLost).length, late=hv.length-lost;
+    const hv=hangOf(p.id).map(([,v])=>v), lost=hv.filter(isLost).length, late=hv.length-lost;
     return `<div class="sum-row" onclick="go('${p.id}')"><div class="sum-name">${esc(p.name)}</div><div class="strip">${strip}</div>
       <div class="num ${bad?'r':'z'}">${bad}</div><div class="num ${late?'r':'z'}">${late}</div><div class="num ${lost?'':'z'}">${lost}</div></div>`;
   }).join('')+`</div>`;
@@ -308,7 +314,7 @@ function renderPvz(pvz){
     const tip=info.status==='ok'?'всё в порядке':info.status==='bad'?'есть проблемы':'нет данных';
     cells+=`<div class="cell ${info.status} ${ds===t?'today':''}" onclick="jump('${ds}')" title="${i} ${MONTHS_G[m-1]}: ${tip}">${i}${mk}</div>`;
   }
-  const hang=Object.entries(hanging[pvz]||{}).map(([bc,v])=>({bc,...v})).sort((a,b)=>(ageOf(b)||0)-(ageOf(a)||0));
+  const hang=hangOf(pvz).map(([bc,v])=>({bc,...v})).sort((a,b)=>(ageOf(b)||0)-(ageOf(a)||0));
   const lost=hang.filter(isLost), late=hang.filter(h=>!isLost(h));
 
   // дни: от сегодняшнего (или последнего дня прошлого месяца) к первому
@@ -329,7 +335,7 @@ function renderPvz(pvz){
     if(info.overdue.length)
       det+=`<div class="lbl">Турбо ПВЗ · не отгружено вовремя · ${info.overdue.length}${info.rem.checked?` · проверка в ${esc(info.rem.checked)}`:''}</div><div class="chips">${capChips(info.overdue.map(o=>{const b=typeof o==='string'?o:o.barcode;const tip=[o.name,o.since?'в статусе с '+o.since:'',o.age_h!=null?ageFmt(o.age_h):'',o.expired?'Ozon: нарушен срок':''].filter(Boolean).join(' · ');return `<span class="chip w" onclick="copy('${esc(b)}')" title="${esc(tip)}">${esc(b)}${o.age_h!=null?` <span style="opacity:.7">${ageFmt(o.age_h)}</span>`:''}</span>`}))}</div>`;
     else if(info.rem)
-      det+=`<div class="lbl">Турбо ПВЗ${info.rem.checked?` · проверка в ${esc(info.rem.checked)}`:''}</div><div class="note">Просрочек нет${info.rem.total!=null?` · к отправке ${info.rem.total}`:''}</div>`;
+      det+=`<div class="lbl">Турбо ПВЗ${info.rem.checked?` · проверка в ${esc(info.rem.checked)}`:''}</div><div class="note">Просрочек нет${info.rem.total!=null?` · к отправке ${info.rem.total}`:''}${info.rem.in_trip?` · ждут курьера ${info.rem.in_trip}`:''}</div>`;
     if(info.rem&&info.rem.lost)
       det+=`<div class="note" style="color:var(--t3);margin-top:6px">+ ${info.rem.lost} висят больше 4 дней — в реестре «Утеряны»</div>`;
     // один нормальный отчёт — одной строкой; лог показываем при повторах/ошибках
@@ -398,7 +404,7 @@ function clarifyBlock(pvz,p,hang){
     <div class="clar-st">${items.length?'Товары из реестра, которые висят не дольше 7 дней — картинка + вопрос в рабочий чат пункта.':'Нет товаров не старше 7 дней — запрашивать нечего.'}${st?`<br>${st}`:''}</div></div>`;
 }
 async function sendClarify(pvz){
-  const p=pvzs.find(x=>x.id===pvz), items=clarifyItems(Object.entries(hanging[pvz]||{}).map(([bc,v])=>({bc,...v})));
+  const p=pvzs.find(x=>x.id===pvz), items=clarifyItems(hangOf(pvz).map(([bc,v])=>({bc,...v})));
   if(!items.length)return;
   if(!confirm(`Отправить в чат «${p.name}» картинку с ${items.length} товарами и вопрос:
 
