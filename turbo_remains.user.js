@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kozonko · Сверка возвратов Ozon
 // @namespace    kozonko
-// @version      2.3
+// @version      2.4
 // @description  Турбо ПВЗ: сверка «Отправить на склад» по всем пунктам (дашборд возвратов) и контроль просрочки приёмки с тревогой в чат ПВЗ
 // @match        https://turbo-pvz.ozon.ru/*
 // @grant        none
@@ -26,8 +26,9 @@
     в чат ПВЗ бот jobparc. Снимок всех пунктов — /supplies/acceptance_status.
 
  Автомонитор включается кнопкой в ОДНОЙ вкладке (её лучше держать открытой
- и не работать в ней): приёмка — каждые ACCEPT_EVERY_MIN минут, сверка
- возвратов — раз в день после RETURNS_HOUR по МСК. Состояние обхода хранится
+ и не работать в ней): приёмка — в ACCEPT_TIMES по МСК (+ точечная перепроверка
+ по таймеру), сверка возвратов — раз в день в RETURNS_AT по МСК; после неё в чаты
+ ПВЗ с ненормативами уходит их список (через бота jobparc). Состояние обхода хранится
  в этой вкладке (sessionStorage), другие вкладки Турбо ПВЗ его не трогают.
 */
 (function () {
@@ -43,13 +44,17 @@
   const ALERT_MINUTES = 30;
   const ALERT_ITEMS = 50;
   const ALERT_REPEAT_MIN = 90;     // по одному пункту не чаще раза в полтора часа
-  const ACCEPT_EVERY_MIN = 120;    // автомонитор: как часто проверять приёмку
+  const ACCEPT_TIMES = ['15:00', '17:00', '19:00', '20:30'];   // автомонитор: проверки приёмки, МСК
   // Если проверка застала идущую приёмку (непринято ≥ ALERT_ITEMS, времени ещё
   // больше ALERT_MINUTES) — по таймеру ставим точечную перепроверку этого пункта
   // на момент «осталось ~30 мин». Перепроверка снова читает таймер и при
   // необходимости переносит себя (таймер Ozon идёт не вровень с часами).
   const FOLLOWUP_MARGIN_MIN = 2;   // приходим чуть раньше, чтобы застать ≤ 30 мин
-  const RETURNS_HOUR = 10;         // автомонитор: сверка возвратов раз в день после этого часа МСК
+  const RETURNS_AT = '13:00';      // автомонитор: сверка возвратов раз в день, МСК (сборка — до 13:00)
+  // Список ненормативов в чат ПВЗ после автосверки (кнопка «Сверить все ПВЗ» вручную — не шлёт)
+  const CLARIFY_MAX_H = 168;       // старше 7 дней не перечисляем
+  const CLARIFY_TEXT = 'Обнаружены ненормативы возвратов. Нужны уточнения по данным товарам. Они будут отправлены сегодня?';
+  const CLARIFY_MAX_LINES = 30;
 
   const RUN = 'kz_run';            // sessionStorage — обход в этой вкладке
   const AUTO = 'kz_auto';          // sessionStorage — автомонитор в этой вкладке
@@ -101,13 +106,13 @@
   const paintAuto = () => { autoBtn.textContent = sessionStorage.getItem(AUTO) ? '● Автомонитор вкл' : 'Автомонитор выкл'; autoBtn.style.color = sessionStorage.getItem(AUTO) ? '#15803D' : '#1C1917'; };
   paintAuto();
 
-  function start(job, only) {
+  function start(job, only, auto) {
     const s = load();
     if (s && !s.done) {
       if (confirm(`Идёт «${JOBS[s.job]}». Остановить?`)) { clear(); say('Остановлено.'); setBusy(false); }
       return;
     }
-    save({ job, only: only || null, queue: null, i: 0, phase: 'stores', results: {}, errors: {}, notes: [], tries: {}, started: Date.now() });
+    save({ job, only: only || null, auto: !!auto, queue: null, i: 0, phase: 'stores', results: {}, errors: {}, notes: [], tries: {}, started: Date.now() });
     location.href = '/stores';
   }
   retBtn.onclick = () => start('returns');
@@ -116,7 +121,7 @@
     if (sessionStorage.getItem(AUTO)) sessionStorage.removeItem(AUTO);
     else {
       sessionStorage.setItem(AUTO, '1');
-      say(`Автомонитор включён в этой вкладке.\nПриёмка — каждые ${ACCEPT_EVERY_MIN} мин, сверка возвратов — раз в день после ${RETURNS_HOUR}:00.\nНе работайте в этой вкладке — она сама ходит по страницам.`);
+      say(`Автомонитор включён в этой вкладке.\nСверка возвратов — в ${RETURNS_AT} (список ненормативов уходит в чаты ПВЗ), приёмка — в ${ACCEPT_TIMES.join(', ')} МСК.\nНе работайте в этой вкладке — она сама ходит по страницам.`);
     }
     paintAuto();
   };
@@ -263,6 +268,20 @@
         await put(`/supplies/returns_hanging/${pvz}`, Object.keys(hanging).length ? hanging : null);
       } catch (e) { writeErr++; s.errors[pvz] = 'запись: ' + e; }
       lines.push(`${slot.codes.join(' + ')}: ${slot.items.length} к отправке, просрочено ${overdue.length}, утеряны (> 4 дн) ${lost.length}, ждут курьера ${waiting}`);
+      // автосверка → список ненормативов (просрочка + утеряны не старше 7 дней) в чат ПВЗ
+      const bad = overdue.concat(lost).filter(it => it.age == null || it.age <= CLARIFY_MAX_H).sort((a, b) => (b.age || 0) - (a.age || 0));
+      if (s.auto && bad.length) {
+        const ageTxt = h => h == null ? '' : h < 48 ? `${Math.round(h)} ч` : `${Math.floor(h / 24)} дн`;
+        const rows = bad.slice(0, CLARIFY_MAX_LINES).map(it => `• ${it.b} — ${(it.n || '').slice(0, 60)}${it.age != null ? ` (висит ${ageTxt(it.age)})` : ''}`);
+        if (bad.length > CLARIFY_MAX_LINES) rows.push(`… и ещё ${bad.length - CLARIFY_MAX_LINES} шт`);
+        try {
+          await put(`/supplies/returns_clarify/${pvz}/${now.getTime()}`, {
+            created: now.getTime(), status: 'pending', auto: true, count: bad.length,
+            text: `${CLARIFY_TEXT}\n\n${rows.join('\n')}`, barcodes: bad.map(it => it.b),
+          });
+          lines[lines.length - 1] += ' → список в чат';
+        } catch (e) { s.errors[pvz] = 'список в чат: ' + e; }
+      }
     }
     lastSet({ returns: date });
     report(s, `Сверка возвратов готова (${msk(now).slice(11)})${writeErr ? ' — ЕСТЬ ОШИБКИ ЗАПИСИ' : ', данные в дашборде'}`, lines);
@@ -357,11 +376,14 @@
     const s = load();
     if (s && !s.done) return;
     const now = new Date(), last = lastGet();
-    const hourMsk = (now.getUTCHours() + 3) % 24;
+    const today = msk(now).slice(0, 10), hm = msk(now).slice(11);
     const due = Object.entries(last.followups || {}).filter(([, t]) => t <= now.getTime()).map(([c]) => c);
     if (due.length) return start('accept', due);
-    if (hourMsk >= RETURNS_HOUR && last.returns !== msk(now).slice(0, 10)) return start('returns');
-    if (!last.accept || now - last.accept >= ACCEPT_EVERY_MIN * 60e3) return start('accept');
+    if (hm >= RETURNS_AT && last.returns !== today) return start('returns', null, true);
+    // приёмка: последний наступивший слот, если по нему сегодня ещё не проверяли
+    // (вкладку открыли в 18:10 — проверит один раз за 17:00, пропущенный 15:00 не догоняет)
+    const slot = ACCEPT_TIMES.filter(x => x <= hm).pop();
+    if (slot && last.acceptSlot !== `${today} ${slot}`) { lastSet({ acceptSlot: `${today} ${slot}` }); return start('accept'); }
   }, 60e3);
 
   step().catch(e => { const s = load(); say('Ошибка: ' + e); if (s) { s.done = true; save(s); } setBusy(false); });
