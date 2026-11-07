@@ -2559,14 +2559,25 @@ setInterval(()=>{
 },30000);// check every 30s
 
 // ── VERSION CHECK ──────────────────────────────────────────────────────────
-const LOCAL_VERSION='1.3.1';
+const LOCAL_VERSION='1.4.0';
 onValue(ref(fdb,'/supplies/config/mkt_required'),snap=>{mktRequired=snap.val()||{};});
-// ОПТИМИЗАЦИЯ: app_version — get() вместо onValue
-get(ref(fdb,'/supplies/config/app_version')).then(snap=>{
+// Версия панели: когда в базе появляется новая (/supplies/config/app_version),
+// показываем баннер и перезагружаемся сами, как только никто ничего не вводит
+// (нет открытых окон и фокуса в поле). Так новые версии доходят до всех ПВЗ без звонков.
+let _updateWanted=false;
+onValue(ref(fdb,'/supplies/config/app_version'),snap=>{
   const sv=snap.val(),ve=document.getElementById('appVerTxt');
   if(ve)ve.textContent='v'+LOCAL_VERSION;
-  if(sv&&sv!==LOCAL_VERSION){const b=document.getElementById('updateBanner');if(b)b.style.display='';}
+  _updateWanted=!!(sv&&sv!==LOCAL_VERSION);
+  const b=document.getElementById('updateBanner');if(b)b.style.display=_updateWanted?'':'none';
 });
+setInterval(()=>{
+  if(!_updateWanted)return;
+  const busy=document.querySelector('.open, [class*="-ov"].on')||/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'');
+  // не чаще раза в 15 минут: GitHub Pages может ещё отдавать старую версию из кэша
+  let last=0;try{last=+sessionStorage.getItem('kz_upd_reload')||0;}catch(e){}
+  if(!busy&&Date.now()-last>900000){try{sessionStorage.setItem('kz_upd_reload',String(Date.now()));}catch(e){}location.reload();}
+},30000);
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2400);}
 
