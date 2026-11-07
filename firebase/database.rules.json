@@ -2,24 +2,30 @@
   "rules": {
     ".read": "auth != null && auth.uid === 'NZzcYYE8WzandJS5AWFhf5Kx8x72'",
     ".write": "auth != null && auth.uid === 'NZzcYYE8WzandJS5AWFhf5Kx8x72'",
-
     "appData": {
       "tabs": {
         ".read": "auth != null",
         "$pvz": {
           "monthData": {
             "$ym": {
-              "assignments": { ".write": "auth != null" },
-              "openCloseEvents": { ".write": "auth != null" }
+              "assignments": {
+                ".write": "auth != null"
+              },
+              "openCloseEvents": {
+                ".write": "auth != null"
+              }
             }
           }
         }
       }
     },
-
-    "staffDirectory": { ".read": "auth != null" },
+    "staffDirectory": {
+      ".read": "auth != null"
+    },
     "staffCabinet": {
-      "$token": { ".read": "auth != null && $token.length === 64" }
+      "$token": {
+        ".read": "auth != null && $token.length === 64"
+      }
     },
     "staffRequests": {
       "$emp": {
@@ -29,33 +35,102 @@
         }
       }
     },
-
-    "system_logs": { "$k": { ".write": "auth != null" } },
-    "pvzTests": { ".read": "auth != null", ".write": "auth != null" },
-    "reactions": { ".read": "auth != null", ".write": "auth != null" },
-    "battleship": { ".read": "auth != null", ".write": "auth != null" },
-
+    "system_logs": {
+      "$k": {
+        ".write": "auth != null"
+      }
+    },
+    "pvzTests": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "reactions": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "battleship": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
     "supplies": {
-      "banners": { ".read": "auth != null" },
-      "company_avg": { ".read": "auth != null" },
-      "config": { ".read": "auth != null" },
-      "notifications": { ".read": "auth != null" },
-      "pvz_list": { ".read": "auth != null" },
-      "inventory": { ".read": "auth != null" },
-      "returns_reports": { ".read": "auth != null" },
-
-      "keys": { ".read": "auth != null", ".write": "auth != null" },
-      "schedule_proposals": { ".read": "auth != null", ".write": "auth != null" },
-      "pending_actions": { ".read": "auth != null", ".write": "auth != null" },
-      "requests": { ".read": "auth != null", ".write": "auth != null" },
-      "acceptance_alerts": { ".read": "auth != null", ".write": "auth != null" },
-      "acceptance_status": { ".read": "auth != null", ".write": "auth != null" },
-      "returns_clarify": { ".read": "auth != null", ".write": "auth != null" },
-      "returns_hanging": { ".read": "auth != null", ".write": "auth != null" },
-      "returns_remains": { ".read": "auth != null", ".write": "auth != null" },
-
-      "schedule_compare_img": { "$pvz": { ".write": "auth != null" } },
-      "shift_audit_log": { "$k": { ".write": "auth != null" } }
+      "banners": {
+        ".read": "auth != null"
+      },
+      "company_avg": {
+        ".read": "auth != null"
+      },
+      "config": {
+        ".read": "auth != null"
+      },
+      "notifications": {
+        ".read": "auth != null"
+      },
+      "pvz_list": {
+        ".read": "auth != null"
+      },
+      "inventory": {
+        ".read": "auth != null"
+      },
+      "returns_reports": {
+        ".read": "auth != null"
+      },
+      "keys": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "schedule_proposals": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "pending_actions": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "requests": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "acceptance_alerts": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "acceptance_status": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "returns_clarify": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "returns_hanging": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "returns_remains": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "schedule_compare_img": {
+        "$pvz": {
+          ".write": "auth != null"
+        }
+      },
+      "shift_audit_log": {
+        "$k": {
+          ".write": "auth != null"
+        }
+      },
+      "chat_logs": {
+        ".read": "auth != null && auth.uid === 'TbKgZ9raJXa4mEaKTjp3hpE8Ylj1'"
+      },
+      "ai_actions": {
+        ".read": "auth != null && auth.uid === 'TbKgZ9raJXa4mEaKTjp3hpE8Ylj1'",
+        ".write": "auth != null && auth.uid === 'TbKgZ9raJXa4mEaKTjp3hpE8Ylj1'"
+      }
+    },
+    "claims": {
+      ".read": "auth != null && auth.uid === 'TbKgZ9raJXa4mEaKTjp3hpE8Ylj1'",
+      ".write": "auth != null && auth.uid === 'TbKgZ9raJXa4mEaKTjp3hpE8Ylj1'"
     }
   }
 }
