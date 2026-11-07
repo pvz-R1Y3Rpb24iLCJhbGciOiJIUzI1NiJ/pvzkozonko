@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Kozonko · Сверка возвратов Ozon
 // @namespace    kozonko
-// @version      2.4
+// @version      2.5
 // @description  Турбо ПВЗ: сверка «Отправить на склад» по всем пунктам (дашборд возвратов) и контроль просрочки приёмки с тревогой в чат ПВЗ
 // @match        https://turbo-pvz.ozon.ru/*
 // @grant        none
@@ -365,8 +365,36 @@
     setBusy(false);
   }
 
-  function put(path, body) {
-    return fetch(FB + path + '.json', { method: 'PUT', body: JSON.stringify(body) })
+  // Вход в базу без пароля (анонимный пользователь Firebase), как у панели ПВЗ.
+  // Токен живёт час и обновляется сам; хранится только в этой вкладке-браузере.
+  const FB_KEY = 'AIzaSyDgpd51erVNy_PwSbYTXPISALNMmYtgTN8';
+  const TOK = 'kz_fb_anon';
+  async function fbToken() {
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(TOK) || 'null'); } catch (e) {}
+    if (s && s.exp > Date.now() + 120000) return s.id;
+    let r;
+    if (s && s.refresh) {
+      r = await fetch('https://securetoken.googleapis.com/v1/token?key=' + FB_KEY, {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(s.refresh) });
+      if (r.ok) { const j = await r.json(); s = { id: j.id_token, refresh: j.refresh_token, exp: Date.now() + j.expires_in * 1000 }; }
+      else s = null;
+    }
+    if (!s || !s.id) {
+      r = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + FB_KEY, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ returnSecureToken: true }) });
+      if (!r.ok) throw 'вход в базу: HTTP ' + r.status;
+      const j = await r.json();
+      s = { id: j.idToken, refresh: j.refreshToken, exp: Date.now() + j.expiresIn * 1000 };
+    }
+    try { localStorage.setItem(TOK, JSON.stringify(s)); } catch (e) {}
+    return s.id;
+  }
+
+  async function put(path, body) {
+    const t = await fbToken().catch(e => { throw typeof e === 'string' ? e : 'вход в базу'; });
+    return fetch(FB + path + '.json?auth=' + encodeURIComponent(t), { method: 'PUT', body: JSON.stringify(body) })
       .then(r => { if (!r.ok) throw 'HTTP ' + r.status; }, () => { throw 'сеть'; });
   }
 

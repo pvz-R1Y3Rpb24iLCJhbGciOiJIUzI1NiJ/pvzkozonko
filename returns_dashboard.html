@@ -7,8 +7,11 @@
 <title>Сборка возвратов Ozon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="core/kz.js" data-role="staff" data-page="returns"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root{
@@ -245,7 +248,7 @@ if(!DEMO){
   db.ref('/supplies/returns_hanging').on('value',s=>{hanging=s.val()||{};render()});
   db.ref('/supplies/returns_clarify').on('value',s=>{clarify=s.val()||{};render()});
 }else stamp();
-db.ref('/appData/employees').once('value').then(s=>{const v=s.val()||[];employees=(Array.isArray(v)?v:Object.values(v)).filter(Boolean);render()});
+db.ref('/staffDirectory').once('value').then(s=>{const v=s.val()||[];employees=(Array.isArray(v)?v:Object.values(v)).filter(Boolean);render()});
 
 function stamp(){document.getElementById('upd').textContent='обновлено '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}
 

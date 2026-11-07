@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kozonko · Удержания</title>
+<link rel="icon" href="../favicon.ico">
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="../core/kz.js" data-role="admin" data-page="deductions"></script>
+<style>
+  .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+  .filters .kz-input,.filters .kz-select{width:100%}
+  .bars{display:grid;gap:8px}
+  .bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;font-size:13.5px}
+  .bar .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar .val{font-variant-numeric:tabular-nums;font-weight:600}
+  .bar .track{grid-column:1/-1;height:6px;border-radius:6px;background:var(--kz-bg);overflow:hidden}
+  .bar .fill{height:100%;background:var(--kz-accent);border-radius:6px}
+  .reason{max-width:340px;overflow-wrap:anywhere;color:var(--kz-muted);font-size:13px}
+  .emp{font-weight:600}
+  td.sum{font-weight:650}
+  .tbl-max{max-height:620px;overflow:auto}
+  .tabs{display:flex;gap:4px;background:var(--kz-card);border:1px solid var(--kz-line);border-radius:14px;padding:4px;width:max-content;max-width:100%;overflow-x:auto}
+  .tabs button{border:0;background:transparent;font:600 14px var(--kz-font);color:var(--kz-muted);padding:8px 14px;border-radius:10px;cursor:pointer;white-space:nowrap}
+  .tabs button[aria-selected="true"]{background:var(--kz-accent-soft);color:var(--kz-accent)}
+  .note{font-size:13px;color:var(--kz-muted)}
+</style>
+</head>
+<body class="kz-page">
+<main class="kz-wrap">
+  <header class="kz-row" style="align-items:flex-end">
+    <div style="display:grid;gap:6px">
+      <span class="kz-eyebrow">Удержания и претензии</span>
+      <h1 class="kz-h1">Удержания</h1>
+      <p class="kz-sub" id="sub">Загружаю…</p>
+    </div>
+    <span class="kz-spacer"></span>
+    <a class="kz-btn kz-btn-primary" href="schedule.html" title="Откроется график: кнопка «Претензии и удержания» внизу справа">Внести удержание</a>
+    <button class="kz-btn" id="csv" type="button">Выгрузить CSV</button>
+  </header>
+
+  <section class="kz-bento" aria-label="Сводка">
+    <div class="kz-card c3 is-warn"><span class="kz-eyebrow">К ближайшей выплате</span><div class="kz-num" id="k-due">—</div><span class="kz-small kz-muted" id="k-due-n"></span></div>
+    <div class="kz-card c3"><span class="kz-eyebrow">Внесено, не учтено</span><div class="kz-num" id="k-pending">—</div><span class="kz-small kz-muted" id="k-pending-n"></span></div>
+    <div class="kz-card c3 is-ok"><span class="kz-eyebrow">Списано за период</span><div class="kz-num" id="k-written">—</div><span class="kz-small kz-muted" id="k-written-n"></span></div>
+    <div class="kz-card c3 is-acc"><span class="kz-eyebrow">Претензии без ответственного</span><div class="kz-num" id="k-claims">—</div><span class="kz-small kz-muted" id="k-claims-n">Ozon, за последние 60 дней</span></div>
+  </section>
+
+  <section class="kz-card" aria-label="Фильтры">
+    <div class="filters">
+      <label class="kz-small kz-muted">Период<select id="f-month" class="kz-select"></select></label>
+      <label class="kz-small kz-muted">Пункт<select id="f-pvz" class="kz-select"><option value="">Все пункты</option></select></label>
+      <label class="kz-small kz-muted">Сотрудник<select id="f-emp" class="kz-select"><option value="">Все сотрудники</option></select></label>
+      <label class="kz-small kz-muted">Статус<select id="f-status" class="kz-select">
+        <option value="">Любой</option><option value="due">К выплате</option><option value="pending">Не учтено</option><option value="written">Списано</option></select></label>
+      <label class="kz-small kz-muted">Поиск<input id="f-q" class="kz-input" type="search" placeholder="Номер, причина, имя"></label>
+    </div>
+  </section>
+
+  <section class="kz-bento">
+    <div class="kz-card c6"><h2 class="kz-h2">По пунктам</h2><div class="bars" id="by-pvz"></div></div>
+    <div class="kz-card c6"><h2 class="kz-h2">По сотрудникам</h2><div class="bars" id="by-emp"></div></div>
+  </section>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="ledger" id="tab-ledger">Реестр удержаний</button>
+    <button role="tab" aria-selected="false" data-tab="claims" id="tab-claims">Претензии Ozon</button>
+  </div>
+
+  <section id="pane-ledger" style="display:grid;gap:10px">
+    <div class="kz-table-wrap tbl-max"><table class="kz-table">
+      <thead><tr><th>Дата смены</th><th>Сотрудник</th><th>Пункт</th><th class="num">Сумма</th><th>Обращение</th><th>Причина</th><th>Статус</th></tr></thead>
+      <tbody id="ledger"><tr><td colspan="7" class="kz-empty">Загружаю…</td></tr></tbody>
+    </table></div>
+    <p class="note">Источник — карточки сотрудников в графике (раздел «Табель зарплат → Удержания»). Учёт и списание делаются там же, как раньше. Новые удержания вносятся кнопкой «Претензии и удержания» на странице графика.</p>
+  </section>
+
+  <section id="pane-claims" hidden style="display:grid;gap:10px">
+    <div class="kz-row">
+      <label class="kz-small kz-muted"><input type="checkbox" id="c-only-free" checked> Только без ответственного</label>
+      <label class="kz-small kz-muted"><input type="checkbox" id="c-hide-closed" checked> Скрыть отменённые, оплаченные и старше 60 дней</label>
+    </div>
+    <div class="kz-table-wrap tbl-max"><table class="kz-table">
+      <thead><tr><th>Дата</th><th>№</th><th>Пункт</th><th class="num">Сумма</th><th>Статус Ozon</th><th>Ответственный</th><th></th></tr></thead>
+      <tbody id="claims"><tr><td colspan="7" class="kz-empty">Загружаю…</td></tr></tbody>
+    </table></div>
+    <p class="note">Ответственного и решение по претензии назначают в разделе «Претензии». Скоро претензии из ТурбоПВЗ будут попадать сюда сами, с подобранной сменой и сотрудником.</p>
+  </section>
+</main>
+
+<script>
+(function(){
+  'use strict';
+  const db = KZ.db();
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const rub = n => new Intl.NumberFormat('ru-RU',{minimumFractionDigits:0,maximumFractionDigits:2}).format(n) + ' ₽';
+  const rub0 = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Math.round(n)) + ' ₽';
+  const ruDate = d => d ? d.slice(8,10) + '.' + d.slice(5,7) + '.' + d.slice(2,4) : '—';
+  const isoDate = x => { const s = String(x || '').slice(0,10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ''; };
+  const MONTHS = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+  const STATUS = { due: ['К выплате','warn'], pending: ['Не учтено',''], written: ['Списано','ok'] };
+
+  let rows = [], claims = [], empById = {}, pvzName = {}, shiftPvz = {};
+  const CLAIM_DAYS = 60;
+
+  // Кто где работал: "empId|YYYY-MM-DD" → pvzId (для старых записей без пункта)
+  function indexShifts(tabs){
+    const idx = {};
+    for (const [pvzId, tab] of Object.entries(tabs || {})) {
+      for (const month of Object.values(tab?.monthData || {})) {
+        for (const [date, a] of Object.entries(month?.assignments || {})) {
+          for (const id of [a?.employeeId, a?.second?.employeeId]) if (id) idx[id + '|' + date] = pvzId;
+        }
+      }
+    }
+    return idx;
+  }
+
+  function buildRows(empRaw){
+    const out = [];
+    const list = Array.isArray(empRaw) ? empRaw : Object.values(empRaw || {});
+    for (const e of list) {
+      if (!e || typeof e !== 'object') continue;
+      for (const [field, hist] of [['deductions', false], ['deductionHistory', true]]) {
+        for (const d of Object.values(e[field] || {})) {
+          if (!d || typeof d !== 'object') continue;
+          const signed = Number(d.amount);
+          if (!Number.isFinite(signed) || signed >= 0) continue;     // премии и корректировки «+» не показываем
+          const reason = String(d.comment || d.reason || '');
+          const req = d.requestNumber || d.claim_id || (reason.match(/№\s*([A-ZА-Я0-9-]{5,})/i) || [])[1] || '';
+          const status = hist ? 'written' : d.accounted ? 'due' : 'pending';
+          const shift = isoDate(d.shiftDate || d.date);
+          const pid = d.pvzId || d.pvz_id || shiftPvz[e.id + '|' + shift] || '';
+          out.push({
+            empId: e.id, emp: e.fullName || e.name || 'Без имени',
+            pvzId: pid, pvz: d.pvzName || pvzName[pid] || '', pvzGuessed: !(d.pvzId || d.pvz_id) && !!pid,
+            amount: Math.abs(signed), shift, account: isoDate(d.accountDate),
+            month: (hist ? isoDate(d.accountDate) : shift).slice(0,7) || shift.slice(0,7),
+            req: String(req), reason, status, marketplace: d.marketplace || ''
+          });
+        }
+      }
+    }
+    return out.sort((a, b) => (b.shift || '').localeCompare(a.shift || ''));
+  }
+
+  function buildClaims(raw){
+    const map = new Map();
+    const put = (id, v, src) => {
+      if (!v || typeof v !== 'object') return;
+      const prev = map.get(id) || {};
+      map.set(id, { ...v, ...prev, _id: id, _src: prev._src || src, responsibility: prev.responsibility || v.responsibility });
+    };
+    for (const [id, v] of Object.entries(raw || {})) if (/^\d+$/.test(id)) put(id, v, 'root');
+    for (const [id, v] of Object.entries(raw?.ozon || {})) put(id, v, 'ozon');
+    return [...map.values()].map(c => {
+      const st = String(c.ozon_status || c.status || '').trim();
+      return {
+        id: c._id, date: isoDate(c.claim_date || c.created_date || c.created_at || c.checked_at),
+        pvz: c.pvz_address || c.pvz || c.pvz_code || '', sum: Number(c.amount ?? c.sum) || 0,
+        status: st, closed: /cancel|отмен|paid|оплач|закрыт/i.test(st),
+        respId: c.responsibility?.employee_id || '', respName: c.employee_name || ''
+      };
+    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }
+
+  function filtered(){
+    const m = $('f-month').value, p = $('f-pvz').value, e = $('f-emp').value, s = $('f-status').value, q = $('f-q').value.trim().toLowerCase();
+    return rows.filter(r => (!m || r.month === m || (r.status !== 'written' && m === 'open'))
+      && (!p || r.pvzId === p || r.pvz === p) && (!e || r.empId === e) && (!s || r.status === s)
+      && (!q || `${r.req} ${r.reason} ${r.emp} ${r.pvz}`.toLowerCase().includes(q)));
+  }
+
+  function bars(el, groups){
+    const top = [...groups.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const max = top[0]?.[1] || 1;
+    el.innerHTML = top.length ? top.map(([k, v]) => `<div class="bar"><span class="lbl" title="${esc(k)}">${esc(k)}</span><span class="val">${rub0(v)}</span><span class="track"><span class="fill" style="width:${Math.max(3, v / max * 100)}%"></span></span></div>`).join('')
+      : '<div class="kz-empty">Нет удержаний за период</div>';
+  }
+
+  function render(){
+    const f = filtered();
+    const due = rows.filter(r => r.status === 'due'), pend = rows.filter(r => r.status === 'pending');
+    const m = $('f-month').value;
+    const written = rows.filter(r => r.status === 'written' && (!m || r.month === m));
+    const sum = a => a.reduce((s, r) => s + r.amount, 0);
+    $('k-due').textContent = rub0(sum(due)); $('k-due-n').textContent = `${due.length} записей`;
+    $('k-pending').textContent = rub0(sum(pend)); $('k-pending-n').textContent = `${pend.length} записей ждут отметки «учесть»`;
+    $('k-written').textContent = rub0(sum(written)); $('k-written-n').textContent = `${written.length} записей`;
+
+    const byP = new Map(), byE = new Map();
+    for (const r of f) { byP.set(r.pvz || 'Пункт не указан', (byP.get(r.pvz || 'Пункт не указан') || 0) + r.amount); byE.set(r.emp, (byE.get(r.emp) || 0) + r.amount); }
+    bars($('by-pvz'), byP); bars($('by-emp'), byE);
+
+    $('ledger').innerHTML = f.length ? f.map(r => {
+      const [label, cls] = STATUS[r.status];
+      return `<tr><td>${ruDate(r.shift)}</td><td class="emp">${esc(r.emp)}</td><td>${esc(r.pvz || '—')}${r.pvzGuessed ? ' <span class="kz-muted" title="Пункт определён по графику смен">·&nbsp;по графику</span>' : ''}</td>
+        <td class="num sum">−${rub(r.amount)}</td><td>${r.req ? esc(r.req) : '<span class="kz-muted">—</span>'}</td>
+        <td><div class="reason">${esc(r.reason)}</div></td><td><span class="kz-pill ${cls}">${label}${r.status === 'written' && r.account ? ' ' + ruDate(r.account) : ''}</span></td></tr>`;
+    }).join('') : '<tr><td colspan="7" class="kz-empty">Ничего не найдено. Измените период или фильтры.</td></tr>';
+    $('sub').textContent = `${f.length} записей на ${rub0(sum(f))} по выбранным условиям`;
+
+    const since = new Date(Date.now() - CLAIM_DAYS * 86400000).toISOString().slice(0, 10);
+    const free = claims.filter(c => !c.closed && !c.respId && c.date >= since);
+    $('k-claims').textContent = free.length;
+    const showFree = $('c-only-free').checked, hideClosed = $('c-hide-closed').checked;
+    const cl = claims.filter(c => (!showFree || !c.respId) && (!hideClosed || !c.closed) && (!hideClosed || c.date >= since));
+    $('claims').innerHTML = cl.length ? cl.slice(0, 400).map(c => `<tr><td>${ruDate(c.date)}</td><td>${esc(c.id)}</td><td>${esc(c.pvz || '—')}</td>
+      <td class="num sum">${c.sum ? rub(c.sum) : '—'}</td><td>${c.status ? `<span class="kz-pill${c.closed ? '' : ' acc'}">${esc(c.status)}</span>` : '—'}</td>
+      <td>${c.respId ? esc(empById[c.respId]?.fullName || empById[c.respId]?.name || c.respId) : '<span class="kz-pill crit">не назначен</span>'}</td>
+      <td><a class="kz-btn kz-btn-sm" href="claims.html?claim=${encodeURIComponent('ozon:' + c.id)}">Открыть</a></td></tr>`).join('')
+      : '<tr><td colspan="7" class="kz-empty">Все претензии разобраны</td></tr>';
+  }
+
+  function csv(){
+    const head = ['Дата смены','Сотрудник','Пункт','Сумма','Обращение','Причина','Статус','Дата списания'];
+    const lines = [head].concat(filtered().map(r => [r.shift, r.emp, r.pvz, String(r.amount).replace('.', ','), r.req, r.reason, STATUS[r.status][0], r.account]));
+    const body = '﻿' + lines.map(l => l.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([body], { type: 'text/csv;charset=utf-8' }));
+    a.download = `udergania_${$('f-month').value || 'vse'}.csv`;
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  function tab(name){
+    for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
+    $('pane-ledger').hidden = name !== 'ledger'; $('pane-claims').hidden = name !== 'claims';
+  }
+
+  async function load(){
+    await KZ.ready;
+    const [pvzS, empS, clS, tabS] = await Promise.all([
+      db.ref('/supplies/pvz_list').once('value'), db.ref('/appData/employees').once('value'), db.ref('/claims').once('value'),
+      db.ref('/appData/tabs').once('value')]);
+    shiftPvz = indexShifts(tabS.val());
+    const pvzs = Object.values(pvzS.val() || {}).filter(p => p && p.pvz_id);
+    pvzName = Object.fromEntries(pvzs.map(p => [p.pvz_id, p.public_name || p.pvz_name]));
+    for (const [id, t] of Object.entries(tabS.val() || {})) if (!pvzName[id] && t?.name) pvzName[id] = t.name;
+    const empRaw = empS.val() || [];
+    const emps = (Array.isArray(empRaw) ? empRaw : Object.values(empRaw)).filter(Boolean);
+    empById = Object.fromEntries(emps.map(e => [e.id, e]));
+    rows = buildRows(empRaw);
+    claims = buildClaims(clS.val() || {});
+
+    const months = [...new Set(rows.map(r => r.month).filter(Boolean))].sort().reverse();
+    const cur = new Date().toISOString().slice(0, 7);
+    if (!months.includes(cur)) months.unshift(cur);
+    $('f-month').innerHTML = '<option value="">Всё время</option>' + months.map(m => `<option value="${m}">${MONTHS[+m.slice(5) - 1]} ${m.slice(0, 4)}</option>`).join('');
+    $('f-month').value = '';
+    $('f-pvz').innerHTML += pvzs.filter(p => p.pvz_id !== '88888888').map(p => `<option value="${esc(p.pvz_id)}">${esc(p.public_name || p.pvz_name)}</option>`).join('');
+    const withRows = new Set(rows.map(r => r.empId));
+    $('f-emp').innerHTML += emps.filter(e => withRows.has(e.id)).sort((a, b) => (a.fullName || a.name || '').localeCompare(b.fullName || b.name || '', 'ru'))
+      .map(e => `<option value="${esc(e.id)}">${esc(e.fullName || e.name)}</option>`).join('');
+    render();
+  }
+
+  for (const id of ['f-month','f-pvz','f-emp','f-status','c-only-free','c-hide-closed']) $(id).addEventListener('change', render);
+  $('f-q').addEventListener('input', render);
+  $('csv').addEventListener('click', csv);
+  for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => { tab(b.dataset.tab); history.replaceState(null, '', '#' + b.dataset.tab); });
+  if (location.hash === '#claims') tab('claims');
+  load().catch(e => { $('sub').textContent = 'Не удалось загрузить: ' + (e.message || e); console.error(e); });
+})();
+</script>
+</body>
+</html>

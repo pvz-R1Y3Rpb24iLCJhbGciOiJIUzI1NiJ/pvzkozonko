@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление ПВЗ</title>
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="../core/kz.js" data-role="admin" data-page="pvz"></script>
+    <style>
+        body {
+            font-family: 'Onest', system-ui, sans-serif;
+            background: #f5f7fa;
+            padding: 40px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 4px 32px rgba(0,91,255,.1);
+        }
+        h1 { margin-bottom: 8px; }
+        .tabs {
+            display: flex;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #E0E6EF;
+        }
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .tab.active {
+            border-bottom: 3px solid #005BFF;
+            color: #005BFF;
+        }
+        label { 
+            display: block; 
+            margin: 16px 0 6px; 
+            font-weight: 600; 
+            color: #4A5568; 
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #E0E6EF;
+            border-radius: 10px;
+            font-size: 15px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 14px 28px;
+            background: #005BFF;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button.delete {
+            background: #FF3B3B;
+        }
+        .success { color: #00B87A; margin-top: 16px; font-weight: 600; }
+        .danger { color: #FF3B3B; margin-top: 16px; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>Управление ПВЗ</h1>
+
+    <div class="tabs">
+        <div class="tab active" onclick="showTab(0)">Добавить ПВЗ</div>
+        <div class="tab" onclick="showTab(1)">Удалить ПВЗ</div>
+    </div>
+
+    <!-- Вкладка Добавления -->
+    <div id="tab0">
+        <label>Ключ ПВЗ (pvz_id)</label>
+        <input type="text" id="add-id" placeholder="pvz_novgorod_01" style="font-family:monospace">
+
+        <label>Название (внутреннее)</label>
+        <input type="text" id="add-name" placeholder="Нижний Новгород, Автозавод">
+
+        <label>Публичное название</label>
+        <input type="text" id="add-public" placeholder="Автозавод (Озон)">
+
+        <label>Chat ID (botzavhoz)</label>
+        <input type="number" id="add-chat" placeholder="2000000123">
+
+        <button onclick="createPvz()">Создать ПВЗ</button>
+    </div>
+
+    <!-- Вкладка Удаления -->
+    <div id="tab1" style="display:none">
+        <label>Выберите ПВЗ для удаления</label>
+        <select id="delete-select" style="width:100%; padding:12px; margin-bottom:16px;"></select>
+        
+        <button class="delete" onclick="deletePvz()">Удалить ПВЗ</button>
+        <div style="margin-top:12px; font-size:13px; color:#666;">
+            ⚠️ Удаление необратимо. Все данные ПВЗ будут потеряны.
+        </div>
+    </div>
+
+    <div id="result"></div>
+</div>
+
+<script>
+// Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyDgpd51erVNy_PwSbYTXPISALNMmYtgTN8",
+  authDomain: "kozonko-9bff6.firebaseapp.com",
+  databaseURL: "https://kozonko-9bff6-default-rtdb.europe-west1.firebasedatabase.app/",
+  projectId: "kozonko-9bff6",
+  storageBucket: "kozonko-9bff6.appspot.com",
+  messagingSenderId: "128059740430",
+  appId: "1:128059740430:web:5c923c4e9d912be196c75f",
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let pvzMap = {};
+
+// Загружаем список ПВЗ
+db.ref('/supplies/pvz_list').on('value', (snap) => {
+    pvzMap = snap.val() || {};
+    renderDeleteSelect();
+});
+
+function renderDeleteSelect() {
+    const select = document.getElementById('delete-select');
+    select.innerHTML = '<option value="">— Выберите ПВЗ —</option>';
+    
+    Object.entries(pvzMap).sort((a,b) => (a[1].pvz_name || a[0]).localeCompare(b[1].pvz_name || b[0], 'ru'))
+        .forEach(([id, info]) => {
+            const name = info.pvz_name || id;
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = `${name} (${id})`;
+            select.appendChild(option);
+        });
+}
+
+function showTab(n) {
+    document.getElementById('tab0').style.display = n === 0 ? 'block' : 'none';
+    document.getElementById('tab1').style.display = n === 1 ? 'block' : 'none';
+    
+    document.querySelectorAll('.tab').forEach((tab, i) => {
+        tab.classList.toggle('active', i === n);
+    });
+}
+
+async function createPvz() {
+    const id = document.getElementById('add-id').value.trim();
+    const name = document.getElementById('add-name').value.trim();
+    const publicName = document.getElementById('add-public').value.trim() || name;
+    const chatId = parseInt(document.getElementById('add-chat').value) || 0;
+
+    if (!id || !name) {
+        alert("Укажите ключ ПВЗ и название!");
+        return;
+    }
+
+    try {
+        const data = {
+            pvz_name: name,
+            public_name: publicName,
+            chat_peer_id: chatId,
+            open_time: "09:00",
+            close_time: "21:00",
+            timezone: "МСК",
+            marketplaces: ["ozon"],
+            weather_enabled: true,
+            photo_reminder: true
+        };
+
+        await db.ref(`/supplies/pvz_list/${id}`).set(data);
+
+        document.getElementById('result').innerHTML = 
+            `<p class="success">✅ ПВЗ "${name}" успешно создан!</p>`;
+        
+        // Очистка
+        document.getElementById('add-id').value = '';
+        document.getElementById('add-name').value = '';
+        document.getElementById('add-public').value = '';
+        document.getElementById('add-chat').value = '';
+        
+    } catch(e) {
+        alert("Ошибка: " + e.message);
+    }
+}
+
+async function deletePvz() {
+    const id = document.getElementById('delete-select').value;
+    if (!id) {
+        alert("Выберите ПВЗ для удаления");
+        return;
+    }
+
+    const name = pvzMap[id]?.pvz_name || id;
+    if (!confirm(`Вы действительно хотите удалить ПВЗ "${name}"?\n\nЭто действие нельзя отменить!`)) {
+        return;
+    }
+
+    try {
+        await db.ref(`/supplies/pvz_list/${id}`).remove();
+        document.getElementById('result').innerHTML = 
+            `<p class="danger">🗑 ПВЗ "${name}" удалён</p>`;
+    } catch(e) {
+        alert("Ошибка удаления: " + e.message);
+    }
+}
+</script>
+
+</body>
+</html>
+</html>

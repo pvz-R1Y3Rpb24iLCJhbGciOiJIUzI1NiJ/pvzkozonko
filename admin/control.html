@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Контроль графиков</title>
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="../core/kz.js" data-role="admin" data-page="control"></script>
+    <style>
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --blue: #2563EB; --blue-light: #EFF6FF;
+            --text: #0F172A; --text-muted: #64748B; --border: #E2E8F0;
+            --bg: #F8FAFC; --white: #FFFFFF;
+            --green: #16A34A; --green-bg: #DCFCE7;
+            --red: #DC2626; --red-bg: #FEE2E2;
+            --gray-bg: #F1F5F9;
+            --shadow-md: 0 4px 16px rgba(37,99,235,0.08);
+            --radius: 10px;
+        }
+        body { font-family: 'Manrope', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .header { background: var(--white); border-bottom: 1.5px solid var(--border); padding: 12px 28px; display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+        .tabs-categories { margin: 0; }
+        .category-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 6px; }
+        .tabs-group { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 0; }
+        .tab { background: transparent; color: var(--text-muted); border: 1.5px solid var(--border); padding: 6px 14px; cursor: pointer; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: 'Manrope', sans-serif; transition: all 0.15s; white-space: nowrap; }
+        .tab:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
+        .tab.active { background: var(--blue); color: white; border-color: var(--blue); border-bottom: none; }
+        .controls { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+        select { background: var(--white); color: var(--text); border: 1.5px solid var(--border); padding: 7px 12px; border-radius: 8px; font-size: 13px; font-family: 'Manrope', sans-serif; font-weight: 600; cursor: pointer; outline: none; }
+        select:focus { border-color: var(--blue); }
+        .content { padding: 20px 28px; }
+        .day-item { display: flex; align-items: flex-start; background: var(--white); margin-bottom: 8px; padding: 16px 20px; border-radius: var(--radius); border: 1.5px solid var(--border); box-shadow: none; gap: 20px; transition: box-shadow 0.15s; }
+        .day-item:hover { box-shadow: var(--shadow-md); }
+        .day-number { font-size: 2.2em; font-weight: 800; width: 60px; text-align: center; color: var(--blue); flex-shrink: 0; }
+        .schedule-info { flex: 0 0 220px; min-width: 220px; font-size: 13px; font-weight: 600; color: var(--text); }
+        .event-info { flex: 0 0 380px; min-width: 380px; font-size: 13px; }
+        .counts-info { flex: 0 0 220px; min-width: 220px; font-size: 13px; }
+        .indicators { flex: 0 0 150px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+        .indicator { padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+        .match, .on-time { background: var(--green-bg); color: var(--green); }
+        .no-match, .late { background: var(--red-bg); color: var(--red); }
+        .neutral { background: var(--gray-bg); color: var(--text-muted); }
+        .editable { border-bottom: 1.5px dashed var(--border); cursor: text; padding: 2px 4px; border-radius: 3px; font-size: 13px; font-weight: 600; }
+        .editable:focus { outline: 2px solid var(--blue); background: var(--blue-light); }
+        .name-container { position: relative; display: inline-block; }
+        .delete-icon { position: absolute; right: -22px; top: 0; display: none; cursor: pointer; color: var(--red); font-size: 16px; line-height: 1; }
+        .name-container:hover .delete-icon { display: inline; }
+        .editable-name { cursor: pointer; padding: 2px 6px; font-size: 13px; font-weight: 600; }
+        .editable-name:hover { background: var(--blue-light); color: var(--blue); border-radius: 4px; }
+        .summary { background: var(--white); padding: 18px; border-radius: var(--radius); font-weight: 700; margin-top: 24px; font-size: 16px; text-align: center; border: 1.5px solid var(--blue); color: var(--blue); }
+        .mode-buttons { display: flex; gap: 4px; }
+        .mode-button { background: var(--white); color: var(--text-muted); border: 1.5px solid var(--border); padding: 7px 16px; cursor: pointer; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: 'Manrope', sans-serif; transition: all 0.15s; }
+        .mode-button:hover { border-color: var(--blue); color: var(--blue); }
+        .mode-button.active { background: var(--blue-light); color: var(--blue); border-color: var(--blue); border-bottom: none; }
+        #export-btn { background: var(--blue) !important; color: white !important; border-color: var(--blue) !important; font-weight: 700; }
+        #export-btn:hover { background: #1D4ED8 !important; }
+        .screening-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding: 20px; }
+        .tile { background: var(--white); padding: 18px; border-radius: var(--radius); display: flex; flex-direction: column; align-items: center; text-align: center; box-shadow: none; border: 1.5px solid var(--border); transition: transform 0.2s, box-shadow 0.15s; }
+        .tile:hover { transform: scale(1.03); box-shadow: var(--shadow-md); }
+        .tile-name { font-weight: 800; margin-bottom: 12px; font-size: 15px; color: var(--text); }
+        .tile-time { margin-bottom: 8px; font-size: 14px; color: var(--text-muted); }
+        .tile-employee { display: flex; align-items: center; font-size: 14px; font-weight: 600; }
+        .tile-indicator { margin-left: 8px; font-size: 18px; }
+        .light-green { border-color: #86EFAC; background: #F0FDF4; }
+        .light-red { border-color: #FCA5A5; background: #FFF5F5; }
+        .gray { border-color: var(--border); background: var(--gray-bg); }
+        #export-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); z-index: 10000; align-items: center; justify-content: center; }
+        .export-modal-content { background: var(--white); color: var(--text); padding: 32px; border-radius: 16px; width: 620px; max-width: 95%; box-shadow: 0 20px 60px rgba(0,0,0,0.15); border: 1.5px solid var(--border); }
+        .export-modal-content h3 { margin: 0 0 20px 0; font-size: 22px; font-weight: 800; color: var(--text); }
+        .export-row { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+        .export-field { flex: 1; min-width: 180px; }
+        .export-field label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; color: var(--text-muted); }
+        .export-checkboxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin-top: 10px; }
+        .export-checkboxes label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 7px; border: 1.5px solid var(--border); }
+        .export-checkboxes label:hover { border-color: var(--blue); background: var(--blue-light); }
+        .export-checkboxes input[type="checkbox"] { accent-color: var(--blue); }
+        .export-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 30px; }
+
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="tabs-categories" id="tabs-categories"></div>
+        <div class="controls">
+            <select id="yearSelect"></select>
+            <select id="monthSelect">
+                <option value="1">Январь</option>
+                <option value="2">Февраль</option>
+                <option value="3">Март</option>
+                <option value="4">Апрель</option>
+                <option value="5">Май</option>
+                <option value="6">Июнь</option>
+                <option value="7">Июль</option>
+                <option value="8">Август</option>
+                <option value="9">Сентябрь</option>
+                <option value="10">Октябрь</option>
+                <option value="11">Ноябрь</option>
+                <option value="12">Декабрь</option>
+            </select>
+        </div>
+        <div class="mode-buttons">
+            <button class="mode-button active" id="schedule-mode">График</button>
+            <button class="mode-button" id="screening-mode">Скриннинг</button>
+            <button class="mode-button" id="heatmap-mode">Тепловая карта</button>
+            <!-- === НОВАЯ КНОПКА ЭКСПОРТА === -->
+            <button id="export-btn" class="mode-button" >
+                📤 Экспорт
+            </button>
+        </div>
+    </div>
+    <div class="content" id="content"></div>
+
+    <!-- === МОДАЛЬНОЕ ОКНО ЭКСПОРТА (нововведение) === -->
+    <div id="export-modal">
+        <div class="export-modal-content">
+            <h3>📤 Экспорт истории ПВЗ</h3>
+            
+            <div class="export-row">
+                <div class="export-field">
+                    <label>ПВЗ для экспорта:</label>
+                    <select id="export-pvz-select" style="width:100%;background:var(--bg);color:var(--text);padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);font-family:Manrope,sans-serif;font-size:13px;font-weight:600;">
+                    </select>
+                </div>
+                
+                <div class="export-field">
+                    <label>С даты:</label>
+                    <input id="export-from" type="date" style="width:100%;background:var(--bg);color:var(--text);padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);font-family:Manrope,sans-serif;font-size:13px;font-weight:600;">
+                </div>
+                
+                <div class="export-field">
+                    <label>По дату:</label>
+                    <input id="export-to" type="date" style="width:100%;background:var(--bg);color:var(--text);padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);font-family:Manrope,sans-serif;font-size:13px;font-weight:600;">
+                </div>
+            </div>
+
+            <div>
+                <strong>Какие данные включить в файл:</strong>
+                <div class="export-checkboxes">
+                    <label><input type="checkbox" id="field-date" checked> Дата</label>
+                    <label><input type="checkbox" id="field-scheduled" checked> Сотрудник по графику</label>
+                    <label><input type="checkbox" id="field-opener" checked> Сотрудник открытия</label>
+                    <label><input type="checkbox" id="field-open-time" checked> Время открытия</label>
+                    <label><input type="checkbox" id="field-closer" checked> Сотрудник закрытия</label>
+                    <label><input type="checkbox" id="field-close-time" checked> Время закрытия</label>
+                    <label><input type="checkbox" id="field-match" checked> Совпадение с графиком (Да/Нет)</label>
+                </div>
+                <p style="font-size: 13px; color: #aaa; margin-top: 8px;">
+                    Файл будет сохранён в формате CSV (открывается в Excel, Google Таблицах и любом текстовом редакторе)
+                </p>
+            </div>
+
+            <div class="export-buttons">
+                <button onclick="hideExportModal()" style="background:var(--gray-bg);color:var(--text-muted);padding:10px 22px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;font-family:Manrope,sans-serif;">
+                    Отмена
+                </button>
+                <button onclick="performExport()" style="background:var(--blue);color:white;padding:10px 22px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;font-family:Manrope,sans-serif;">
+                    ✅ Экспортировать в файл
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDgpd51erVNy_PwSbYTXPISALNMmYtgTN8",
+            authDomain: "kozonko-9bff6.firebaseapp.com",
+            databaseURL: "https://kozonko-9bff6-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "kozonko-9bff6",
+            storageBucket: "kozonko-9bff6.appspot.com",
+            messagingSenderId: "128059740430",
+            appId: "1:128059740430:web:5c923c4e9d912be196c75f"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let data = null;
+        let activeTab = null;
+        let currentYear = null;
+        let currentMonth = null;
+        let currentMode = 'schedule';
+        // ==================== ТОЛЬКО СТАРЫЕ ID (новые лежат в БД) ====================
+        const legacyTgChatIdMap = {
+            "7630725407": "5o97155",
+            "5145611479": "j4vitf6",
+            "951735118": "2jpx5kt",
+            "850889924": "c0eygan",
+            "1030767114": "58nmca8",
+            "2069011874": "f6f384l",
+            "7622553571": "jmofrkb",
+            "830770922": "s8el1z3",
+            "1717585628": "d6eehuy",
+            "5296490776": "vfi5j29",
+            "1149585499": "yraxfku",
+            "265040825": "lr0kl03mg1yk86z",
+            "8353440702": "zv5kmg2mg9kgoda",
+            "1026658751": "qffmrqkmg9krh0v",
+            "7212972775": "10elbuvmh5afd08",
+            "1073235606": "lammkqcmhhvwkun",
+            "5695853671": "91js5simhhw47ca",
+            "843970035": "ev5nd7umih9ynhw",
+            "1407014849": "nvs6jwxmg0y89zp",
+            "1616593366": "d8ip9hamjvl3rk2",
+            "5429910073": "11gg0vhmjvl8kzv",
+            "2136087603": "uggnurf",
+            "6558882303": "drrecgdmg1yklb0",
+            "817888706": "rhcgt8gmk71sro2",
+            "1376598179": "pnu8o1eml9qwted",
+            "502586042": "p5tvqg1mm981owr",
+            "951234832": "h5wpeptmmouh3av",
+            "5275212833": "6fwixxjmmouie21",
+            "1515741888": "9ozce62",
+            "5911524588": "0zu1nsa",
+            "5854730083": "z5nrpjnmg9kqzk6",
+            "5398620440": "fcwelr3mh4wfg0o",
+            "6226352496": "ergewmemg9kiis7",
+            "5350756199": "ihkhx3j",
+            "2053942293": "yqjayks",
+            "1143533216": "o1yzrlb",
+            "8350887779": "ckg12u7mhqm42i0",
+            "799088235": "ukmwb4mmg0zidob",
+            "883233711": "348ju3q"
+        };
+        function findEmployeeByUserId(userId) {
+            if (!userId || String(userId).trim() === '') return null;
+            const uidStr = String(userId);
+            let emp = (data.employees || []).find(e =>
+                e.tgChatId && String(e.tgChatId) === uidStr
+            );
+            if (emp) return emp;
+            const legacyEmpId = legacyTgChatIdMap[uidStr];
+            if (legacyEmpId) {
+                return (data.employees || []).find(e => e.id === legacyEmpId);
+            }
+            return null;
+        }
+        // ОПТИМИЗАЦИЯ: Вместо db.ref('appData').on('value') который грузит ~10MB,
+        // подписываемся на нужные поддеревья отдельно.
+        // Данные объединяем в объект data как раньше.
+        data = {};
+        function mergeAndRender() {
+            if (!data.tabs || !data.order) return; // ждём оба
+            if (!activeTab && data.order && data.order.length > 0) {
+                activeTab = data.order[0];
+            }
+            if (!currentYear) currentYear = data.globalYear || new Date().getFullYear();
+            if (!currentMonth) currentMonth = data.globalMonth || new Date().getMonth() + 1;
+            populateYears();
+            populateMonths();
+            renderTabs();
+            renderContent();
+        }
+        // Слушаем только нужные ветки:
+        db.ref('appData/order').on('value', snap => {
+            data.order = snap.val() || [];
+            mergeAndRender();
+        });
+        db.ref('appData/tabs').on('value', snap => {
+            data.tabs = snap.val() || {};
+            mergeAndRender();
+        });
+        db.ref('appData/employees').on('value', snap => {
+            const raw = snap.val();
+            data.employees = Array.isArray(raw) ? raw : Object.values(raw || {});
+            mergeAndRender();
+        });
+        // globalYear/globalMonth — грузим один раз
+        db.ref('appData/globalYear').once('value', snap => {
+            if (snap.val()) { data.globalYear = snap.val(); }
+        });
+        db.ref('appData/globalMonth').once('value', snap => {
+            if (snap.val()) { data.globalMonth = snap.val(); }
+        });
+        function populateYears() {
+            const yearSelect = document.getElementById('yearSelect');
+            yearSelect.innerHTML = '';
+            const current = new Date().getFullYear();
+            for (let y = current - 2; y <= current + 2; y++) {
+                const option = document.createElement('option');
+                option.value = y;
+                option.textContent = y;
+                if (y === currentYear) option.selected = true;
+                yearSelect.appendChild(option);
+            }
+            yearSelect.onchange = () => {
+                currentYear = parseInt(yearSelect.value);
+                renderContent();
+            };
+        }
+        function populateMonths() {
+            const monthSelect = document.getElementById('monthSelect');
+            monthSelect.value = currentMonth;
+            monthSelect.onchange = () => {
+                currentMonth = parseInt(monthSelect.value);
+                renderContent();
+            };
+        }
+		function renderTabs() {
+			const tabsCategoriesEl = document.getElementById('tabs-categories');
+			tabsCategoriesEl.innerHTML = '';
+
+			if (!data || !data.tabs) {
+				tabsCategoriesEl.innerHTML = '<div class="category-header">Данные ещё не загружены</div>';
+				return;
+			}
+
+			const header = document.createElement('div');
+			header.className = 'category-header';
+			header.textContent = 'Все ПВЗ';
+			tabsCategoriesEl.appendChild(header);
+
+			const group = document.createElement('div');
+			group.className = 'tabs-group';
+
+			// === Собираем все tabId ===
+			let allTabIds = new Set(Object.keys(data.tabs));
+
+			// Сначала идём по порядку из data.order (если есть)
+			const orderedTabs = [];
+			if (data.order && Array.isArray(data.order)) {
+				data.order.forEach(id => {
+					if (allTabIds.has(id)) {
+						orderedTabs.push(id);
+						allTabIds.delete(id);
+					}
+				});
+			}
+
+			// Добавляем оставшиеся tabId (которые не были в order)
+			const remainingTabs = Array.from(allTabIds).sort(); // сортируем по алфавиту
+
+			const finalOrder = [...orderedTabs, ...remainingTabs];
+
+			// Создаём кнопки
+			finalOrder.forEach(id => {
+				const tab = data.tabs[id];
+				if (!tab) return;
+
+				const button = document.createElement('button');
+				button.classList.add('tab');
+				if (id === activeTab) button.classList.add('active');
+
+				// Красивое название
+				const displayName = tab.name ? `${tab.name} (${id})` : id;
+				button.textContent = displayName;
+
+				button.onclick = () => {
+					activeTab = id;
+					renderTabs();
+					renderContent();
+				};
+
+				group.appendChild(button);
+			});
+
+			tabsCategoriesEl.appendChild(group);
+		}
+        function renderContent() {
+            if (!data) return;
+            const content = document.getElementById('content');
+            content.innerHTML = '';
+            if (currentMode === 'schedule') {
+                renderScheduleContent(content);
+            } else if (currentMode === 'screening') {
+                renderScreeningContent(content);
+            } else if (currentMode === 'heatmap') {
+                renderHeatmapContent(content);
+            }
+        }
+        function renderScheduleContent(content) {
+            const yearMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+            const tab = data.tabs[activeTab];
+            if (!tab) {
+                content.innerHTML = '<h2>Вкладка не найдена</h2>';
+                return;
+            }
+            const scheduleStart = tab.schedule ? tab.schedule.start : '09:00';
+            const [startH, startM] = scheduleStart.split(':').map(Number);
+            const targetMinutes = startH * 60 + startM + 1;
+            const tabMonthData = tab.monthData || {};
+            const monthData = tabMonthData[yearMonth] || { assignments: {}, openCloseEvents: {} };
+            const assignments = monthData.assignments || {};
+            const openCloseEvents = monthData.openCloseEvents || {};
+            const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+            let totalReceived = 0;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dayStr = String(d).padStart(2, '0');
+                const date = `${yearMonth}-${dayStr}`;
+                const assignment = assignments[date];
+                const scheduledEmployee = assignment ? data.employees.find(e => e.id === assignment.employeeId) : null;
+                let scheduledName = scheduledEmployee ? (scheduledEmployee.fullName || scheduledEmployee.name) : 'Не назначено';
+                const scheduledId = scheduledEmployee ? scheduledEmployee.id : null;
+                const scheduledEmployee2 = (assignment && assignment.second && assignment.second.employeeId)
+                    ? data.employees.find(e => e.id === assignment.second.employeeId) : null;
+                const scheduledId2 = scheduledEmployee2 ? scheduledEmployee2.id : null;
+                if (scheduledEmployee2) {
+                    scheduledName += ` + ${scheduledEmployee2.fullName || scheduledEmployee2.name}`
+                        + (assignment.splitTime ? ` (модульная смена, передача в ${assignment.splitTime})` : ' (модульная смена)');
+                }
+                const events = openCloseEvents[date] || {};
+                const open = events.open || {};
+                const close = events.close || {};
+                const openEmployee = findEmployeeByUserId(open.user_id);
+                const openName = (openEmployee ? (openEmployee.fullName || openEmployee.name) : open.username) || 'Нет данных';
+                const openId = openEmployee ? openEmployee.id : null;
+                const openTime = open.time || '';
+                const closeEmployee = findEmployeeByUserId(close.user_id);
+                const closeName = (closeEmployee ? (closeEmployee.fullName || closeEmployee.name) : close.username) || 'Нет данных';
+                const closeId = closeEmployee ? closeEmployee.id : null;
+                const closeTime = close.time || '';
+                const switches = events.switches ? Object.values(events.switches) : [];
+                let matchClass = 'neutral';
+                let matchText = 'Нет данных';
+                if (openId && closeId) {
+                    const scheduledIds = [scheduledId, scheduledId2].filter(Boolean);
+                    const openOk = scheduledIds.length ? scheduledIds.includes(openId) : false;
+                    const closeOk = scheduledIds.length ? scheduledIds.includes(closeId) : false;
+                    const match = openOk && closeOk && (openId === closeId || scheduledId2 || switches.length);
+                    matchClass = match ? 'match' : 'no-match';
+                    matchText = match ? 'Сотрудник совпадает' : 'Ошибка';
+                }
+                let lateClass = 'neutral';
+                let lateText = 'Нет данных';
+                if (openTime) {
+                    const [h, m] = openTime.split(':').map(Number);
+                    const openMinutes = h * 60 + m;
+                    const noLate = openMinutes < targetMinutes;
+                    lateClass = noLate ? 'on-time' : 'late';
+                    lateText = noLate ? 'Без опозданий' : 'Опоздание';
+                }
+                totalReceived += (events.received_count || 0) +
+                                 (events.ozon_received_count || 0) +
+                                 (events.yandex_received_count || 0) +
+                                 (events.avito_received_count || 0) +
+                                 (events.wb_received_count || 0);
+                const dayItem = document.createElement('div');
+                dayItem.classList.add('day-item');
+                const dayNumber = document.createElement('div');
+                dayNumber.classList.add('day-number');
+                dayNumber.textContent = d;
+                dayItem.appendChild(dayNumber);
+                const scheduleInfo = document.createElement('div');
+                scheduleInfo.classList.add('schedule-info');
+                scheduleInfo.innerHTML = `В графике:<br><b>${scheduledName}</b>`;
+                dayItem.appendChild(scheduleInfo);
+                const eventInfo = document.createElement('div');
+                eventInfo.classList.add('event-info');
+                eventInfo.innerHTML = `
+                    Открытие: <span contenteditable="true" class="editable" data-type="open" data-field="time" data-date="${date}">${openTime}</span><br>
+                    <span class="name-container">
+                        <span class="editable-name" data-type="open" data-date="${date}">${openName}</span>
+                        <span class="delete-icon" data-type="open" data-date="${date}">🗑️</span>
+                    </span><br><br>
+                    Закрытие: <span contenteditable="true" class="editable" data-type="close" data-field="time" data-date="${date}">${closeTime}</span><br>
+                    <span class="name-container">
+                        <span class="editable-name" data-type="close" data-date="${date}">${closeName}</span>
+                        <span class="delete-icon" data-type="close" data-date="${date}">🗑️</span>
+                    </span>
+                    ${switches.length ? '<br><br>' + switches.map(sw => {
+                        if (sw.type === 'module') {
+                            return `🧩 Модульная смена: ${sw.emp1_name || '?'}${sw.emp2_name ? ' + ' + sw.emp2_name : ''}${sw.split_time ? ' (передача в ' + sw.split_time + ')' : ''} — ${sw.time || ''}`;
+                        }
+                        return `🔁 Смена сотрудника ${sw.time || ''}: ${sw.from_name || '?'} → ${sw.to_name || '?'}`;
+                    }).join('<br>') : ''}
+                `;
+                dayItem.appendChild(eventInfo);
+                const countsInfo = document.createElement('div');
+                countsInfo.classList.add('counts-info');
+                countsInfo.innerHTML = `
+                    Принято Ozon: <span contenteditable="true" class="editable" data-type="count" data-field="ozon_received_count" data-date="${date}">${events.ozon_received_count || ''}</span><br>
+                    Принято Yandex: <span contenteditable="true" class="editable" data-type="count" data-field="yandex_received_count" data-date="${date}">${events.yandex_received_count || ''}</span><br>
+                    Принято Avito: <span contenteditable="true" class="editable" data-type="count" data-field="avito_received_count" data-date="${date}">${events.avito_received_count || ''}</span><br>
+                    Принято WB: <span contenteditable="true" class="editable" data-type="count" data-field="wb_received_count" data-date="${date}">${events.wb_received_count || ''}</span><br>
+                    Остаток пакетов: <span contenteditable="true" class="editable" data-type="count" data-field="packets_count" data-date="${date}">${events.packets_count || ''}</span><br>
+                    Остаток незамерзаек: <span contenteditable="true" class="editable" data-type="count" data-field="antifreeze_count" data-date="${date}">${events.antifreeze_count || ''}</span>
+                `;
+                dayItem.appendChild(countsInfo);
+                const indicatorsDiv = document.createElement('div');
+                indicatorsDiv.classList.add('indicators');
+                const matchInd = document.createElement('div');
+                matchInd.classList.add('indicator', matchClass);
+                matchInd.textContent = matchText;
+                indicatorsDiv.appendChild(matchInd);
+                const lateInd = document.createElement('div');
+                lateInd.classList.add('indicator', lateClass);
+                lateInd.textContent = lateText;
+                indicatorsDiv.appendChild(lateInd);
+                dayItem.appendChild(indicatorsDiv);
+                content.appendChild(dayItem);
+            }
+            const summary = document.createElement('div');
+            summary.classList.add('summary');
+            summary.innerHTML = `Итого принято за месяц: <b>${totalReceived}</b>`;
+            content.appendChild(summary);
+        }
+        function getTodayDate() {
+            const today = new Date();
+            return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        }
+        function calculateAverageReceived(tabId, todayDate) {
+            const tabMonthData = (data.tabs[tabId] || {}).monthData || {};
+            let total = 0, count = 0;
+            const [y, m] = todayDate.split('-').slice(0, 2);
+            const ym = `${y}-${m}`;
+            const events = (tabMonthData[ym] || {}).openCloseEvents || {};
+            const todayDay = parseInt(todayDate.split('-')[2]);
+            for (let d = Math.max(1, todayDay - 6); d < todayDay; d++) {
+                const dayStr = String(d).padStart(2, '0');
+                const dateKey = `${ym}-${dayStr}`;
+                if (events[dateKey] && events[dateKey].received_count) {
+                    total += events[dateKey].received_count;
+                    count++;
+                }
+            }
+            return count > 0 ? total / count : 0;
+        }
+        function renderScreeningContent(content) {
+            const todayDate = getTodayDate();
+            const grid = document.createElement('div');
+            grid.classList.add('screening-grid');
+            Object.entries(data.tabs || {}).forEach(([tabId, tab]) => {
+                const averageReceived = calculateAverageReceived(tabId, todayDate);
+                const size = Math.max(160, Math.min(320, 160 + averageReceived / 8));
+                const yearMonth = todayDate.slice(0, 7);
+                const monthData = (tab.monthData || {})[yearMonth] || { assignments: {}, openCloseEvents: {} };
+                const assignments = monthData.assignments || {};
+                const openCloseEvents = monthData.openCloseEvents || {};
+                const assignment = assignments[todayDate];
+                const scheduledEmployee = assignment ? data.employees.find(e => e.id === assignment.employeeId) : null;
+                const scheduledId = scheduledEmployee ? scheduledEmployee.id : null;
+                const events = openCloseEvents[todayDate] || {};
+                const open = events.open || {};
+                const openTime = open.time || '';
+                const openEmployee = findEmployeeByUserId(open.user_id);
+                const openName = (openEmployee ? (openEmployee.fullName || openEmployee.name) : open.username) || 'Нет данных';
+                const openId = openEmployee ? openEmployee.id : null;
+                let tileClass = 'gray';
+                let timeText = 'Не открыт';
+                if (openTime) {
+                    const scheduleStart = tab.schedule ? tab.schedule.start : '09:00';
+                    const [sh, sm] = scheduleStart.split(':').map(Number);
+                    const target = sh * 60 + sm + 2;
+                    const [h, m] = openTime.split(':').map(Number);
+                    const openMin = h * 60 + m;
+                    timeText = openTime;
+                    tileClass = openMin < target ? 'light-green' : 'light-red';
+                }
+                const match = openId && scheduledId === openId;
+                const indicator = match ? '✅' : '❌';
+                const tile = document.createElement('div');
+                tile.classList.add('tile', tileClass);
+                tile.style.width = `${size}px`;
+                tile.style.height = `${size}px`;
+                const nameEl = document.createElement('div');
+                nameEl.classList.add('tile-name');
+                nameEl.textContent = tab.name || tabId;
+                tile.appendChild(nameEl);
+                const timeEl = document.createElement('div');
+                timeEl.classList.add('tile-time');
+                timeEl.textContent = `Открытие: ${timeText}`;
+                tile.appendChild(timeEl);
+                const employeeEl = document.createElement('div');
+                employeeEl.classList.add('tile-employee');
+                employeeEl.textContent = `Сотрудник: ${openName}`;
+                const indEl = document.createElement('span');
+                indEl.classList.add('tile-indicator');
+                indEl.textContent = indicator;
+                employeeEl.appendChild(indEl);
+                tile.appendChild(employeeEl);
+                grid.appendChild(tile);
+            });
+            content.appendChild(grid);
+        }
+        function renderHeatmapContent(content) {
+            const placeholder = document.createElement('div');
+            placeholder.style.padding = '40px';
+            placeholder.style.textAlign = 'center';
+            placeholder.style.fontSize = '18px';
+            placeholder.textContent = 'Тепловая карта (в разработке)';
+            content.appendChild(placeholder);
+        }
+
+        /* ===================== НОВОВВЕДЕНИЕ: ЭКСПОРТ ИСТОРИИ ===================== */
+        function getDatesInRange(startStr, endStr) {
+            const dates = [];
+            let current = new Date(startStr + 'T00:00:00');
+            const end = new Date(endStr + 'T00:00:00');
+            while (current <= end) {
+                const year = current.getFullYear();
+                const month = String(current.getMonth() + 1).padStart(2, '0');
+                const day = String(current.getDate()).padStart(2, '0');
+                dates.push(`${year}-${month}-${day}`);
+                current.setDate(current.getDate() + 1);
+            }
+            return dates;
+        }
+
+        function hideExportModal() {
+            document.getElementById('export-modal').style.display = 'none';
+        }
+
+        function showExportModal() {
+            if (!data || !activeTab) {
+                alert('Данные ещё не загружены или не выбрана вкладка ПВЗ');
+                return;
+            }
+            const modal = document.getElementById('export-modal');
+            const currentTabName = data.tabs[activeTab] ? (data.tabs[activeTab].name || activeTab) : 'Текущий ПВЗ';
+
+            // Заполняем выбор ПВЗ
+            const pvzSelect = document.getElementById('export-pvz-select');
+            pvzSelect.innerHTML = `
+                <option value="current">Текущий: ${currentTabName}</option>
+                <option value="all">Все ПВЗ</option>
+            `;
+
+            // Дефолтные даты — текущий месяц
+            const fromInput = document.getElementById('export-from');
+            const toInput = document.getElementById('export-to');
+            const firstDay = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+            const today = getTodayDate();
+            fromInput.value = firstDay;
+            toInput.value = today;
+
+            modal.style.display = 'flex';
+        }
+
+        function performExport() {
+            const modal = document.getElementById('export-modal');
+            const pvzMode = document.getElementById('export-pvz-select').value;
+
+            let selectedTabIds = [];
+            if (pvzMode === 'current') {
+                selectedTabIds = [activeTab];
+            } else {
+                selectedTabIds = Object.keys(data.tabs || {});
+            }
+
+            const fromDate = document.getElementById('export-from').value;
+            const toDate = document.getElementById('export-to').value;
+
+            if (!fromDate || !toDate) {
+                alert('Пожалуйста, укажите период дат');
+                return;
+            }
+
+            // Собираем выбранные поля
+            const selectedFields = [];
+            if (document.getElementById('field-date').checked) selectedFields.push('date');
+            if (document.getElementById('field-scheduled').checked) selectedFields.push('scheduled');
+            if (document.getElementById('field-opener').checked) selectedFields.push('opener');
+            if (document.getElementById('field-open-time').checked) selectedFields.push('open_time');
+            if (document.getElementById('field-closer').checked) selectedFields.push('closer');
+            if (document.getElementById('field-close-time').checked) selectedFields.push('close_time');
+            if (document.getElementById('field-match').checked) selectedFields.push('match');
+
+            if (selectedFields.length === 0) {
+                alert('Выберите хотя бы одно поле для экспорта');
+                return;
+            }
+
+            const dates = getDatesInRange(fromDate, toDate);
+            let csvRows = [];
+            let headers = [];
+
+            const isMultiPVZ = selectedTabIds.length > 1;
+            if (isMultiPVZ) headers.push('ПВЗ');
+            if (selectedFields.includes('date')) headers.push('Дата');
+            if (selectedFields.includes('scheduled')) headers.push('Сотрудник по графику');
+            if (selectedFields.includes('opener')) headers.push('Сотрудник открытия');
+            if (selectedFields.includes('open_time')) headers.push('Время открытия');
+            if (selectedFields.includes('closer')) headers.push('Сотрудник закрытия');
+            if (selectedFields.includes('close_time')) headers.push('Время закрытия');
+            if (selectedFields.includes('match')) headers.push('Совпадение с графиком');
+
+            csvRows.push(headers.join(';'));
+
+            selectedTabIds.forEach(tabId => {
+                const tab = data.tabs[tabId];
+                if (!tab) return;
+                const tabName = tab.name || tabId;
+                const monthDataMap = tab.monthData || {};
+
+                dates.forEach(date => {
+                    const ym = date.substring(0, 7);
+                    const monthData = monthDataMap[ym] || { assignments: {}, openCloseEvents: {} };
+                    const assignments = monthData.assignments || {};
+                    const openCloseEvents = monthData.openCloseEvents || {};
+
+                    // Сотрудник по графику (учитываем модульную смену — второго сотрудника)
+                    const assignment = assignments[date];
+                    let scheduledName = 'Не назначено';
+                    let scheduledId = null;
+                    let scheduledId2 = null;
+                    if (assignment && assignment.employeeId) {
+                        const emp = data.employees.find(e => e.id === assignment.employeeId);
+                        if (emp) {
+                            scheduledName = emp.fullName || emp.name || 'Неизвестно';
+                            scheduledId = emp.id;
+                        }
+                    }
+                    if (assignment && assignment.second && assignment.second.employeeId) {
+                        const emp2 = data.employees.find(e => e.id === assignment.second.employeeId);
+                        if (emp2) {
+                            scheduledId2 = emp2.id;
+                            scheduledName += ` + ${emp2.fullName || emp2.name || 'Неизвестно'} (модульная смена${assignment.splitTime ? ', с ' + assignment.splitTime : ''})`;
+                        }
+                    }
+
+                    // Открытие / Закрытие
+                    const event = openCloseEvents[date] || {};
+                    const open = event.open || {};
+                    const close = event.close || {};
+
+                    const openEmp = findEmployeeByUserId(open.user_id);
+                    const openName = openEmp 
+                        ? (openEmp.fullName || openEmp.name || open.username || 'Нет данных') 
+                        : (open.username || 'Нет данных');
+                    const openTimeVal = open.time || '';
+
+                    const closeEmp = findEmployeeByUserId(close.user_id);
+                    const closeName = closeEmp 
+                        ? (closeEmp.fullName || closeEmp.name || close.username || 'Нет данных') 
+                        : (close.username || 'Нет данных');
+                    const closeTimeVal = close.time || '';
+
+                    // Совпадение (с учётом модульной смены / смены сотрудника в течение дня:
+                    // считаем корректным, если открывший и закрывший входят в число
+                    // назначенных на день сотрудников — не обязательно один и тот же человек)
+                    const openId = openEmp ? openEmp.id : null;
+                    const closeId = closeEmp ? closeEmp.id : null;
+                    const scheduledIds = [scheduledId, scheduledId2].filter(Boolean);
+                    const hadSwitch = !!(event.switches && Object.keys(event.switches).length);
+                    let matchText = 'Нет данных';
+                    if (openId && closeId && scheduledIds.length) {
+                        const openOk = scheduledIds.includes(openId);
+                        const closeOk = scheduledIds.includes(closeId);
+                        if (openOk && closeOk) {
+                            matchText = (openId === closeId || scheduledId2 || hadSwitch) ? 'Да' : 'Нет';
+                        } else {
+                            matchText = 'Нет';
+                        }
+                    } else if (openId || closeId) {
+                        matchText = 'Нет';
+                    }
+
+                    const rowData = [];
+                    if (isMultiPVZ) rowData.push(tabName);
+                    if (selectedFields.includes('date')) rowData.push(date);
+                    if (selectedFields.includes('scheduled')) rowData.push(scheduledName);
+                    if (selectedFields.includes('opener')) rowData.push(openName);
+                    if (selectedFields.includes('open_time')) rowData.push(openTimeVal);
+                    if (selectedFields.includes('closer')) rowData.push(closeName);
+                    if (selectedFields.includes('close_time')) rowData.push(closeTimeVal);
+                    if (selectedFields.includes('match')) rowData.push(matchText);
+
+                    csvRows.push(rowData.join(';'));
+                });
+            });
+
+            // Генерируем CSV с BOM (чтобы русский текст корректно открывался в Excel)
+            const csvString = '\uFEFF' + csvRows.join('\r\n');
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `история_пвз_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            modal.style.display = 'none';
+            alert('✅ Файл успешно экспортирован!');
+        }
+
+        document.addEventListener('focusout', (event) => {
+            if (!event.target.classList.contains('editable')) return;
+            const newValue = event.target.textContent.trim();
+            const type = event.target.dataset.type;
+            const field = event.target.dataset.field;
+            const date = event.target.dataset.date;
+            const yearMonth = date.slice(0, 7);
+            if (type === 'count') {
+                const path = `appData/tabs/${activeTab}/monthData/${yearMonth}/openCloseEvents/${date}/${field}`;
+                db.ref(path).set(newValue ? parseInt(newValue) : null);
+            } else if (type === 'open' || type === 'close') {
+                const basePath = `appData/tabs/${activeTab}/monthData/${yearMonth}/openCloseEvents/${date}/${type}`;
+                if (field === 'time') {
+                    db.ref(`${basePath}/time`).set(newValue || null);
+                }
+            }
+        });
+
+        document.addEventListener('click', (event) => {
+            if (event.target.classList.contains('delete-icon')) {
+                const type = event.target.dataset.type;
+                const date = event.target.dataset.date;
+                const yearMonth = date.slice(0, 7);
+                const path = `appData/tabs/${activeTab}/monthData/${yearMonth}/openCloseEvents/${date}/${type}`;
+                if (confirm('Удалить событие?')) {
+                    db.ref(path).remove();
+                }
+            }
+            else if (event.target.classList.contains('editable-name')) {
+                const type = event.target.dataset.type;
+                const date = event.target.dataset.date;
+                const yearMonth = date.slice(0, 7);
+                const basePath = `appData/tabs/${activeTab}/monthData/${yearMonth}/openCloseEvents/${date}/${type}`;
+                const container = event.target.parentNode;
+                const originalName = event.target.textContent;
+                container.innerHTML = '';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = 'Поиск сотрудника';
+                input.style.width = '180px';
+                container.appendChild(input);
+                const dropdown = document.createElement('div');
+                dropdown.style.position = 'absolute';
+                dropdown.style.background = '#3a3a3a';
+                dropdown.style.border = '1px solid #555';
+                dropdown.style.maxHeight = '220px';
+                dropdown.style.overflowY = 'auto';
+                dropdown.style.zIndex = '1000';
+                container.appendChild(dropdown);
+                function updateDropdown(search = '') {
+                    dropdown.innerHTML = '';
+                    (data.employees || []).filter(e =>
+                        (e.fullName || e.name).toLowerCase().includes(search.toLowerCase())
+                    ).forEach(emp => {
+                        const item = document.createElement('div');
+                        item.textContent = emp.fullName || emp.name;
+                        item.style.padding = '8px 12px';
+                        item.style.cursor = 'pointer';
+                        item.onclick = () => {
+                            db.ref(`${basePath}/user_id`).set(emp.tgChatId || null);
+                            db.ref(`${basePath}/username`).set(emp.tgUsername || '');
+                            container.innerHTML = `
+                                <span class="editable-name" data-type="${type}" data-date="${date}">${emp.fullName || emp.name}</span>
+                                <span class="delete-icon" data-type="${type}" data-date="${date}">🗑️</span>
+                            `;
+                        };
+                        dropdown.appendChild(item);
+                    });
+                }
+                updateDropdown();
+                input.oninput = () => updateDropdown(input.value);
+                input.focus();
+                function closeDropdown(ev) {
+                    if (!container.contains(ev.target)) {
+                        container.innerHTML = `
+                            <span class="editable-name" data-type="${type}" data-date="${date}">${originalName}</span>
+                            <span class="delete-icon" data-type="${type}" data-date="${date}">🗑️</span>
+                        `;
+                        document.removeEventListener('click', closeDropdown);
+                    }
+                }
+                document.addEventListener('click', closeDropdown);
+            }
+            else if (event.target.classList.contains('mode-button') && !event.target.id.includes('export-btn')) {
+                document.querySelectorAll('.mode-button').forEach(b => b.classList.remove('active'));
+                event.target.classList.add('active');
+                currentMode = event.target.id.replace('-mode', '');
+                renderContent();
+            }
+        });
+
+        /* === Запуск экспорта по клику на кнопку === */
+        document.addEventListener('DOMContentLoaded', () => {
+            const exportBtn = document.getElementById('export-btn');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', showExportModal);
+            }
+        });
+    </script>
+</body>
+</html>

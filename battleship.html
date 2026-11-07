@@ -5,8 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Морской бой · ПВЗ</title>
 <link rel="icon" href="favicon.ico">
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="core/kz.js" data-role="staff" data-page="battleship"></script>
 <style>
 :root{--bg:#F2F5FA;--card:#FFFFFF;--card2:#EDF1F7;--border:#D9E0EC;--t1:#1A2238;--t2:#5A6478;--t3:#8A92A6;--blue:#2563EB;--blue-soft:#DBEAFE;--green:#16A34A;--red:#DC2626;--yellow:#D97706;--water:#BBD6F2;--water-h:#9EC4ED;--hit:#DC2626;--miss:#94A3B8;--ship:#2563EB}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -222,7 +225,7 @@ function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.re
 function showLobby(){show('screenLobby');}
 
 // ── EMPLOYEES ──
-db.ref('/appData/employees').on('value',snap=>{
+db.ref('/staffDirectory').on('value',snap=>{
   const raw=snap.val();
   allEmployees=(Array.isArray(raw)?raw:Object.values(raw||{})).filter(e=>e&&!e.hidden);
 });

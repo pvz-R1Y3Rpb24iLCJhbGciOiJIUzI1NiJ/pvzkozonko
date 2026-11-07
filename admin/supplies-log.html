@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kozonko · Снабжение — лог чатов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue: #2563EB;
+    --blue-light: #EFF4FF;
+    --border: #E5E7EB;
+    --text: #111827;
+    --muted: #6B7280;
+    --bg: #FAFAFA;
+    --green: #10B981;
+    --green-light: #ECFDF5;
+    --red: #DC2626;
+    --red-light: #FEF2F2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 20px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 { font-size: 18px; font-weight: 700; margin: 0; }
+  header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .controls {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  select, input[type=text], textarea {
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: var(--text);
+    background: #fff;
+  }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+  button {
+    font-family: inherit;
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { opacity: .9; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.secondary {
+    background: #fff; color: var(--blue); border: 1px solid var(--blue);
+  }
+  button.ghost {
+    background: #fff; color: var(--muted); border: 1px solid var(--border);
+    padding: 5px 10px; font-size: 12px; font-weight: 600;
+  }
+  button.ghost:hover { border-color: var(--blue); color: var(--blue); opacity: 1; }
+  button.ghost.danger:hover { border-color: var(--red); color: var(--red); }
+  button.ordered {
+    background: var(--green-light); color: var(--green); border: 1px solid var(--green);
+    padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: default;
+  }
+  button.ordered:hover { opacity: 1; }
+  .btn-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 20px 80px; }
+
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 4px; margin-bottom: 20px;
+    border-bottom: 2px solid var(--border);
+  }
+  .tab-btn {
+    background: none; color: var(--muted); border: none; border-radius: 0;
+    padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+  }
+  .tab-btn:hover { color: var(--blue); opacity: 1; }
+  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .day-group { margin-bottom: 22px; }
+  .day-label {
+    font-size: 12px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em;
+    margin: 0 0 8px 4px;
+  }
+  .msg {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 6px;
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .msg.msg-ordered { opacity: .5; }
+  .msg .pvz {
+    font-size: 11px; font-weight: 600; color: var(--blue);
+    background: var(--blue-light); padding: 2px 8px; border-radius: 6px;
+    white-space: nowrap;
+  }
+  .msg .who { font-weight: 600; font-size: 13px; white-space: nowrap; }
+  .msg .time { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .msg .text { font-size: 14px; flex: 1; word-break: break-word; white-space: pre-wrap; }
+  .msg .pvz.pvz-unbound { color: #B45309; background: #FEF3C7; }
+  .day-label {
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
+    background: #F3F4F6; border-radius: 8px; padding: 6px 10px;
+    position: sticky; top: 76px; z-index: 5;
+  }
+  .day-label::before { content: '▾'; margin-right: 8px; color: var(--muted); }
+  .day-label > span:first-child { flex: 1; }
+  .day-count { font-weight: 500; text-transform: none; letter-spacing: 0; }
+  .day-group.collapsed .day-label::before { content: '▸'; }
+  .day-group.collapsed .msg { display: none; }
+  .muted { color: var(--muted); font-size: 12px; }
+  #unboundBanner {
+    display: none; background: #FFFBEB; border: 1px solid #F59E0B;
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px;
+  }
+  #unboundBanner .ub-title { font-weight: 700; margin-bottom: 8px; }
+  #unboundBanner .ub-row { margin-bottom: 8px; }
+  .msg .ordered-tag {
+    font-size: 11px; font-weight: 600; color: var(--green);
+    background: var(--green-light); padding: 2px 8px; border-radius: 6px;
+    white-space: nowrap;
+  }
+  .empty { color: var(--muted); font-size: 14px; padding: 40px 0; text-align: center; }
+  .stat { color: var(--muted); font-size: 13px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+  .stat label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+  /* Summary section */
+  .summary-section {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+  .summary-section h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; }
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .summary-table th {
+    background: var(--blue-light);
+    color: var(--blue);
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 2px solid var(--blue);
+    font-weight: 600;
+  }
+  .summary-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .summary-table tr:hover { background: #f9fafb; }
+  .summary-table tr.row-ordered { opacity: .55; }
+  .summary-badge {
+    display: inline-block;
+    background: var(--blue-light);
+    color: var(--blue);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  .summary-price { color: var(--blue); font-weight: 600; }
+  .summary-rating { color: #f59e0b; font-weight: 600; }
+  .summary-status { color: #10b981; font-weight: 600; }
+
+  .actionlog h2 { font-size: 15px; margin: 0 0 4px; }
+  .actionlog .sub { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .actionlog form { display: flex; gap: 8px; margin-bottom: 18px; }
+  .actionlog textarea { flex: 1; min-height: 60px; resize: vertical; }
+
+  /* Bulk copy toolbar */
+  .bulk-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; flex-wrap: wrap;
+    background: var(--blue-light); border: 1px solid var(--blue);
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 14px;
+  }
+  .bulk-bar .left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--text); }
+  .bulk-bar label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; }
+  .copied-flash { color: var(--green); font-weight: 600; font-size: 13px; }
+
+  .action-entry {
+    background: #fff; border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 6px; font-size: 13px;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .action-entry.entry-ordered { background: var(--green-light); border-color: var(--green); }
+  .action-entry .checkbox-col { flex-shrink: 0; padding-top: 2px; }
+  .action-entry .checkbox-col input { width: 16px; height: 16px; cursor: pointer; }
+  .action-entry .body { flex: 1; min-width: 0; }
+  .action-entry .time { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+  .action-entry .lines { display: flex; flex-direction: column; gap: 2px; }
+  .action-entry .lines .line { line-height: 1.5; word-break: break-word; }
+  .action-entry .lines .line a { color: var(--blue); text-decoration: none; }
+  .action-entry .lines .line a:hover { text-decoration: underline; }
+  .action-entry .actions { flex-shrink: 0; }
+</style>
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="../core/kz.js" data-role="admin" data-page="supplies-log"></script>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Лог чатов ПВЗ — снабжение</h1>
+    <div class="sub">Последние 14 дней · для принятия решений о закупке расходников</div>
+  </div>
+  <div class="controls">
+    <select id="pvzSelect"><option value="">Все ПВЗ</option></select>
+    <input type="text" id="search" placeholder="Поиск по тексту…">
+    <button class="secondary" id="refreshBtn">Обновить</button>
+  </div>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="journal">📋 Журнал действий ИИ</button>
+    <button class="tab-btn" data-tab="chat">💬 Лог сообщений</button>
+  </div>
+
+  <!-- JOURNAL TAB (главная вкладка) -->
+  <div class="tab-panel active" id="tab-journal">
+    <div id="summarySection" class="summary-section" style="display:none;">
+      <h2>📊 Рекомендации ИИ (сегодня)</h2>
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th>ПВЗ</th>
+            <th>Товар</th>
+            <th>Цена</th>
+            <th>★ Рейтинг</th>
+            <th>Статус</th>
+          </tr>
+        </thead>
+        <tbody id="summaryBody">
+        </tbody>
+      </table>
+    </div>
+
+    <div class="actionlog">
+      <h2>Журнал действий ИИ</h2>
+      <div class="sub">Сюда записываются решения по снабжению (что рекомендовано, какая ссылка отправлена). Отметьте «Заказано», когда закупка подтверждена — агент перестанет реагировать на эту потребность.</div>
+      <form id="actionForm">
+        <textarea id="actionText" placeholder="Например: ПВЗ Оранжерейная — скотч упаковочный, Ozon 289₽ ★4.8, ссылка отправлена в чат"></textarea>
+        <button type="submit">Записать</button>
+      </form>
+
+      <div class="bulk-bar">
+        <div class="left">
+          <label><input type="checkbox" id="selectAll"> Выбрать все</label>
+          <span id="selectedCount">Выбрано: 0</span>
+          <span class="copied-flash" id="copiedFlash" style="display:none;">Скопировано ✓</span>
+        </div>
+        <button type="button" id="copySelectedBtn" disabled>Скопировать выбранное</button>
+      </div>
+
+      <div id="actionFeed"></div>
+    </div>
+  </div>
+
+  <!-- CHAT LOG TAB -->
+  <div class="tab-panel" id="tab-chat">
+    <div id="unboundBanner"></div>
+    <div class="stat">
+      <span id="stat"></span>
+      <label><input type="checkbox" id="hideOrdered"> скрывать заказанное</label>
+    </div>
+    <div id="feed"></div>
+  </div>
+</main>
+
+<script>
+const FIREBASE_URL = "https://kozonko-9bff6-default-rtdb.europe-west1.firebasedatabase.app";
+const RETENTION_DAYS = 14;
+
+let allLogs = {};
+let pvzNames = {};
+let allActions = {}; // ts -> { text, ordered, ordered_at }
+let currentEntries = []; // [ts, rawValue] отображаемые сейчас в журнале, в порядке рендера
+let selectedTs = new Set();
+
+// Tabs
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+async function fetchJSON(path) {
+  const res = await fetch(`${FIREBASE_URL}${path}.json`);
+  if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+  return res.json();
+}
+
+function cutoffMs() {
+  return Date.now() - RETENTION_DAYS * 86400 * 1000;
+}
+
+let unboundChats = {}; // peer_id -> { label, last_seen, last_text }
+
+async function loadAll() {
+  document.getElementById('stat').textContent = 'Загрузка…';
+  try {
+    const [logs, pvzList, unbound] = await Promise.all([
+      fetchJSON('/supplies/chat_logs'),
+      fetchJSON('/supplies/pvz_list'),
+      fetchJSON('/supplies/unbound_chats').catch(() => null)
+    ]);
+    allLogs = logs || {};
+    unboundChats = unbound || {};
+    pvzNames = {};
+    if (pvzList) {
+      for (const [id, data] of Object.entries(pvzList)) {
+        pvzNames[id] = (data && data.pvz_name) || id;
+      }
+    }
+    populatePvzSelect();
+    renderUnboundBanner();
+    render();
+  } catch (e) {
+    document.getElementById('stat').textContent = 'Ошибка загрузки: ' + e.message;
+    document.getElementById('feed').innerHTML = '';
+  }
+}
+
+// Название для id: известный ПВЗ → имя из pvz_list; unbound_* → метка из самих сообщений
+function pvzLabel(id) {
+  if (pvzNames[id]) return pvzNames[id];
+  const entries = allLogs[id];
+  if (entries && typeof entries === 'object') {
+    for (const m of Object.values(entries)) {
+      if (m && m.pvz_name) return m.pvz_name;
+    }
+  }
+  return id;
+}
+
+function isUnbound(id) { return String(id).startsWith('unbound_'); }
+
+function countRecent(id) {
+  const entries = allLogs[id];
+  if (!entries || typeof entries !== 'object') return 0;
+  const cutoff = cutoffMs();
+  let n = 0;
+  for (const ts of Object.keys(entries)) {
+    const t = parseInt(ts, 10);
+    if (!isNaN(t) && t >= cutoff) n++;
+  }
+  return n;
+}
+
+function populatePvzSelect() {
+  const sel = document.getElementById('pvzSelect');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Все ПВЗ</option>';
+
+  // Все ПВЗ из pvz_list (даже если сообщений пока нет) + всё, что реально есть в логах
+  const known = new Set([...Object.keys(pvzNames), ...Object.keys(allLogs)]);
+  const pvzIds = [...known].filter(id => !isUnbound(id))
+    .sort((a, b) => pvzLabel(a).localeCompare(pvzLabel(b), 'ru'));
+  const unboundIds = [...known].filter(isUnbound).sort();
+
+  for (const id of pvzIds) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = `${pvzLabel(id)} (${countRecent(id)})`;
+    sel.appendChild(opt);
+  }
+  if (unboundIds.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = 'Не привязанные чаты / служебные';
+    for (const id of unboundIds) {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = `${pvzLabel(id)} (${countRecent(id)})`;
+      grp.appendChild(opt);
+    }
+    sel.appendChild(grp);
+  }
+  sel.value = current;
+  if (sel.value !== current) sel.value = '';
+}
+
+// Баннер: какие именно чаты не привязаны к ПВЗ (кроме служебного)
+function renderUnboundBanner() {
+  const box = document.getElementById('unboundBanner');
+  const items = Object.entries(unboundChats)
+    .filter(([peer, v]) => v && !String(v.label || '').startsWith('Служебный'))
+    .sort((a, b) => (b[1].last_seen || 0) - (a[1].last_seen || 0));
+  if (!items.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const rows = items.map(([peer, v]) => {
+    const chatId = Number(peer) > 2000000000 ? Number(peer) - 2000000000 : null;
+    const when = v.last_seen ? new Date(v.last_seen).toLocaleString('ru-RU') : '';
+    return `<div class="ub-row"><b>peer_id ${escapeHtml(peer)}</b>` +
+      (chatId ? ` <span class="muted">(chat_id для админки: <b>${chatId}</b>)</span>` : ' <span class="muted">(личный диалог)</span>') +
+      ` · последнее: ${escapeHtml(when)}<br><span class="muted">«${escapeHtml(v.last_text || '')}»</span></div>`;
+  }).join('');
+  box.innerHTML = `<div class="ub-title">⚠ Сообщения из чатов, не привязанных к ПВЗ (${items.length})</div>${rows}` +
+    `<div class="muted" style="margin-top:6px">Укажите этот peer_id / chat_id в админ-панели у нужного ПВЗ — и сообщения пойдут в его лог.</div>`;
+  box.style.display = 'block';
+}
+
+const MONTHS_RU = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const WEEKDAYS_RU = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+function dayTitle(dayStr) {
+  const [y, m, d] = dayStr.split('-').map(Number);
+  if (!y) return dayStr;
+  const dt = new Date(y, m - 1, d);
+  const todayStr = new Date().toLocaleDateString('sv-SE');
+  const yest = new Date(); yest.setDate(yest.getDate() - 1);
+  const yestStr = yest.toLocaleDateString('sv-SE');
+  const base = `${d} ${MONTHS_RU[m - 1]}, ${WEEKDAYS_RU[dt.getDay()]}`;
+  if (dayStr === todayStr) return `Сегодня · ${base}`;
+  if (dayStr === yestStr) return `Вчера · ${base}`;
+  return base;
+}
+
+// Нормализация текста ПВЗ/названия для сопоставления сообщений с записями журнала
+function normPvz(s) {
+  return String(s || '').toLowerCase().replace(/[^a-zа-я0-9]/gi, '');
+}
+
+// Есть ли среди заказанных записей журнала такая, что относится к этому ПВЗ
+function isPvzFullyOrdered(pvzId) {
+  if (isUnbound(pvzId)) return false;
+  const pvzLabelNorm = normPvz(pvzNames[pvzId] || pvzId);
+  if (!pvzLabelNorm) return false;
+  const entries = Object.values(allActions);
+  const related = entries.filter(a => normPvz(a.pvz || '').includes(pvzLabelNorm) || pvzLabelNorm.includes(normPvz(a.pvz || '')));
+  if (!related.length) return false;
+  return related.every(a => a.ordered);
+}
+
+function render() {
+  const pvzFilter = document.getElementById('pvzSelect').value;
+  const search = document.getElementById('search').value.trim().toLowerCase();
+  const hideOrdered = document.getElementById('hideOrdered').checked;
+  const cutoff = cutoffMs();
+
+  let msgs = [];
+  for (const [pvzId, entries] of Object.entries(allLogs)) {
+    if (pvzFilter && pvzId !== pvzFilter) continue;
+    if (!entries || typeof entries !== 'object') continue;
+    for (const [ts, m] of Object.entries(entries)) {
+      const tsNum = parseInt(ts, 10);
+      if (isNaN(tsNum) || tsNum < cutoff) continue;
+      if (search && !(m.text || '').toLowerCase().includes(search)) continue;
+      const seq = parseInt(String(ts).split('_')[1] || '0', 10) || 0;
+      msgs.push({ ts: tsNum, seq, pvzId, ...m });
+    }
+  }
+  // новые сверху; при равном времени — по id сообщения (хвост ключа после "_")
+  msgs.sort((a, b) => (b.ts - a.ts) || (b.seq - a.seq));
+
+  if (hideOrdered) {
+    msgs = msgs.filter(m => !isPvzFullyOrdered(m.pvzId));
+  }
+
+  const pvzText = pvzFilter ? ` · ${pvzLabel(pvzFilter)}` : '';
+  document.getElementById('stat').textContent = `${msgs.length} сообщений${pvzText} · за последние ${RETENTION_DAYS} дней`;
+
+  const feed = document.getElementById('feed');
+  if (!msgs.length) {
+    feed.innerHTML = '<div class="empty">Нет сообщений за выбранный период</div>';
+    return;
+  }
+
+  // Группировка по дням (по дате в МСК, записанной ботом)
+  const groups = {};
+  for (const m of msgs) {
+    const day = (m.date || '').slice(0, 10) || new Date(m.ts).toLocaleDateString('sv-SE');
+    (groups[day] = groups[day] || []).push(m);
+  }
+
+  feed.innerHTML = '';
+  for (const day of Object.keys(groups).sort().reverse()) {
+    const dg = document.createElement('div');
+    dg.className = 'day-group';
+    const dayMsgs = groups[day];
+    const pvzCount = new Set(dayMsgs.map(x => x.pvzId)).size;
+    const label = document.createElement('div');
+    label.className = 'day-label';
+    label.innerHTML = `<span>${escapeHtml(dayTitle(day))}</span>` +
+      `<span class="day-count">${dayMsgs.length} сообщ.` +
+      (!pvzFilter && pvzCount > 1 ? ` · ${pvzCount} ПВЗ` : '') + `</span>`;
+    label.addEventListener('click', () => dg.classList.toggle('collapsed'));
+    dg.appendChild(label);
+    for (const m of dayMsgs) {
+      const ordered = isPvzFullyOrdered(m.pvzId);
+      const row = document.createElement('div');
+      row.className = 'msg' + (ordered ? ' msg-ordered' : '');
+      row.innerHTML = `
+        <span class="pvz${isUnbound(m.pvzId) ? ' pvz-unbound' : ''}">${escapeHtml(pvzLabel(m.pvzId))}</span>
+        <span class="who">${escapeHtml(m.from_name || m.from_id || '')}</span>
+        <span class="time">${escapeHtml((m.date || '').slice(11, 16))}</span>
+        <span class="text">${escapeHtml(m.text || '')}</span>
+        ${ordered ? '<span class="ordered-tag">✓ заказано</span>' : ''}
+      `;
+      dg.appendChild(row);
+    }
+    feed.appendChild(dg);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// Parse AI action summary (для таблицы "Рекомендации ИИ")
+function parseSummary(actionText) {
+  const match = actionText.match(/^([^—]+?)\s*—\s+([^,]+?),\s+([^,]+?)\s+(\d+)₽[^★]*★([\d.]+)/);
+  if (match) {
+    return {
+      pvz: match[1].trim(),
+      item: match[2].trim(),
+      source: match[3].trim(),
+      price: match[4],
+      rating: match[5]
+    };
+  }
+  return null;
+}
+
+// Разбивает текст записи на читаемые строки:
+// "ПВЗ — товар1 (цена ★рейт) + товар2 (цена ★рейт), ссылки: тип1 URL1 | тип2 URL2"
+// превращается в: заголовок ПВЗ, затем каждая позиция/ссылка на своей строке.
+function formatEntryLines(text) {
+  const lines = [];
+  const linksIdx = text.indexOf(', ссылки:');
+  const linkIdx1 = text.indexOf(', ссылка:');
+  let head = text;
+  let linksPart = '';
+  if (linksIdx !== -1) {
+    head = text.slice(0, linksIdx);
+    linksPart = text.slice(linksIdx + ', ссылки:'.length).trim();
+  } else if (linkIdx1 !== -1) {
+    head = text.slice(0, linkIdx1);
+    linksPart = text.slice(linkIdx1 + ', ссылка:'.length).trim();
+  }
+
+  // Заголовок: "ПВЗ — товар1 (..) + товар2 (..)"
+  const dashIdx = head.indexOf('—');
+  if (dashIdx !== -1) {
+    const pvz = head.slice(0, dashIdx).trim();
+    const itemsStr = head.slice(dashIdx + 1).trim();
+    lines.push({ type: 'pvz', text: pvz });
+    const items = itemsStr.split(' + ').map(s => s.trim()).filter(Boolean);
+    if (items.length > 1) {
+      items.forEach(it => lines.push({ type: 'item', text: '• ' + it }));
+    } else if (items.length === 1) {
+      lines.push({ type: 'item', text: items[0] });
+    }
+  } else {
+    lines.push({ type: 'pvz', text: head.trim() });
+  }
+
+  // Ссылки: "маркеры URL | скотч URL" или просто "URL"
+  if (linksPart) {
+    const linkItems = linksPart.split('|').map(s => s.trim()).filter(Boolean);
+    linkItems.forEach(li => {
+      const urlMatch = li.match(/(https?:\/\/\S+)/);
+      if (urlMatch) {
+        const url = urlMatch[1];
+        const label = li.slice(0, urlMatch.index).trim();
+        lines.push({ type: 'link', label: label || 'ссылка', url });
+      } else {
+        lines.push({ type: 'text', text: li });
+      }
+    });
+  } else {
+    // fallback: попробовать найти голые ссылки прямо в head, если формат не совпал
+    const urls = text.match(/https?:\/\/\S+/g);
+    if (urls && dashIdx === -1) {
+      urls.forEach(u => lines.push({ type: 'link', label: 'ссылка', url: u }));
+    }
+  }
+
+  return lines;
+}
+
+function renderLinesHtml(lines) {
+  return lines.map(l => {
+    if (l.type === 'pvz') return `<div class="line"><strong>${escapeHtml(l.text)}</strong></div>`;
+    if (l.type === 'item') return `<div class="line">${escapeHtml(l.text)}</div>`;
+    if (l.type === 'link') return `<div class="line">🔗 ${escapeHtml(l.label)}: <a href="${escapeHtml(l.url)}" target="_blank" rel="noopener">${escapeHtml(l.url)}</a></div>`;
+    return `<div class="line">${escapeHtml(l.text)}</div>`;
+  }).join('');
+}
+
+function linesToPlainText(lines) {
+  return lines.map(l => {
+    if (l.type === 'pvz') return l.text;
+    if (l.type === 'item') return l.text;
+    if (l.type === 'link') return `${l.label}: ${l.url}`;
+    return l.text;
+  }).join('\n');
+}
+
+// Приводим значение записи журнала к единому виду { text, ordered, ordered_at }
+function normalizeAction(v) {
+  if (typeof v === 'string') {
+    return { text: v, ordered: false, ordered_at: null };
+  }
+  if (v && typeof v === 'object') {
+    return {
+      text: v.text || '',
+      ordered: !!v.ordered,
+      ordered_at: v.ordered_at || null
+    };
+  }
+  return { text: String(v ?? ''), ordered: false, ordered_at: null };
+}
+
+async function loadActions() {
+  try {
+    const data = await fetchJSON('/supplies/ai_actions');
+    const cutoff = cutoffMs();
+    allActions = {};
+
+    const entries = Object.entries(data || {})
+      .filter(([ts]) => parseInt(ts, 10) >= cutoff)
+      .sort((a, b) => b[0] - a[0]);
+
+    currentEntries = entries;
+    // убрать из выбора то, чего больше нет
+    const existingTs = new Set(entries.map(([ts]) => ts));
+    selectedTs.forEach(ts => { if (!existingTs.has(ts)) selectedTs.delete(ts); });
+
+    const actionFeed = document.getElementById('actionFeed');
+    actionFeed.innerHTML = '';
+
+    if (!entries.length) {
+      actionFeed.innerHTML = '<div class="empty">Пока пусто</div>';
+    }
+
+    for (const [ts, raw] of entries) {
+      const norm = normalizeAction(raw);
+      const parsed = parseSummary(norm.text);
+      allActions[ts] = { ...norm, pvz: parsed ? parsed.pvz : '' };
+      const lines = formatEntryLines(norm.text);
+
+      const entryEl = document.createElement('div');
+      entryEl.className = 'action-entry' + (norm.ordered ? ' entry-ordered' : '');
+      entryEl.innerHTML = `
+        <div class="checkbox-col">
+          <input type="checkbox" class="entry-checkbox" data-ts="${ts}" ${selectedTs.has(ts) ? 'checked' : ''}>
+        </div>
+        <div class="body">
+          <div class="time">${new Date(parseInt(ts, 10)).toLocaleString('ru-RU')}${norm.ordered ? ' · ✓ заказано' : ''}</div>
+          <div class="lines">${renderLinesHtml(lines)}</div>
+        </div>
+        <div class="actions btn-row">
+          ${norm.ordered
+            ? `<button type="button" class="ordered" disabled>✓ Заказано</button>`
+            : `<button type="button" class="ghost" data-act="order" data-ts="${ts}">Отметить заказанным</button>`}
+          <button type="button" class="ghost danger" data-act="delete" data-ts="${ts}">Удалить</button>
+        </div>
+      `;
+      actionFeed.appendChild(entryEl);
+    }
+
+    actionFeed.querySelectorAll('button[data-act="order"]').forEach(btn => {
+      btn.addEventListener('click', () => markOrdered(btn.getAttribute('data-ts')));
+    });
+    actionFeed.querySelectorAll('button[data-act="delete"]').forEach(btn => {
+      btn.addEventListener('click', () => deleteAction(btn.getAttribute('data-ts')));
+    });
+    actionFeed.querySelectorAll('.entry-checkbox').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const ts = cb.getAttribute('data-ts');
+        if (cb.checked) selectedTs.add(ts); else selectedTs.delete(ts);
+        updateBulkBar();
+      });
+    });
+
+    updateBulkBar();
+
+    // Build summary table from today's actions
+    const summaryBody = document.getElementById('summaryBody');
+    const summarySection = document.getElementById('summarySection');
+    const summaries = [];
+
+    for (const [ts, raw] of entries) {
+      const norm = normalizeAction(raw);
+      const parsed = parseSummary(norm.text);
+      if (parsed) {
+        summaries.push({ ...parsed, ordered: norm.ordered, ts });
+      }
+    }
+
+    if (summaries.length > 0) {
+      summarySection.style.display = 'block';
+      summaryBody.innerHTML = summaries.map(s => `
+        <tr class="${s.ordered ? 'row-ordered' : ''}">
+          <td><span class="summary-badge">${escapeHtml(s.pvz)}</span></td>
+          <td>${escapeHtml(s.item)}</td>
+          <td class="summary-price">${s.price}₽</td>
+          <td class="summary-rating">★${s.rating}</td>
+          <td>
+            <div class="btn-row">
+              ${s.ordered
+                ? '<span class="summary-status">✓ Заказано</span>'
+                : `<button type="button" class="ghost" data-act="order" data-ts="${s.ts}">Отметить заказанным</button>`}
+              <button type="button" class="ghost danger" data-act="delete" data-ts="${s.ts}">Удалить</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+      summaryBody.querySelectorAll('button[data-act="order"]').forEach(btn => {
+        btn.addEventListener('click', () => markOrdered(btn.getAttribute('data-ts')));
+      });
+      summaryBody.querySelectorAll('button[data-act="delete"]').forEach(btn => {
+        btn.addEventListener('click', () => deleteAction(btn.getAttribute('data-ts')));
+      });
+    } else {
+      summarySection.style.display = 'none';
+    }
+
+    render();
+  } catch (e) {
+    document.getElementById('actionFeed').innerHTML = `<div class="empty">Ошибка: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function updateBulkBar() {
+  const count = selectedTs.size;
+  document.getElementById('selectedCount').textContent = `Выбрано: ${count}`;
+  document.getElementById('copySelectedBtn').disabled = count === 0;
+  const allCb = document.getElementById('selectAll');
+  allCb.checked = currentEntries.length > 0 && count === currentEntries.length;
+}
+
+document.getElementById('selectAll').addEventListener('change', (e) => {
+  if (e.target.checked) {
+    currentEntries.forEach(([ts]) => selectedTs.add(ts));
+  } else {
+    selectedTs.clear();
+  }
+  document.querySelectorAll('.entry-checkbox').forEach(cb => {
+    cb.checked = selectedTs.has(cb.getAttribute('data-ts'));
+  });
+  updateBulkBar();
+});
+
+document.getElementById('copySelectedBtn').addEventListener('click', async () => {
+  // сохраняем порядок как в currentEntries (сверху вниз, от новых к старым)
+  const orderedSelected = currentEntries.filter(([ts]) => selectedTs.has(ts));
+  const blocks = orderedSelected.map(([ts, raw]) => {
+    const norm = normalizeAction(raw);
+    const lines = formatEntryLines(norm.text);
+    return linesToPlainText(lines);
+  });
+  const finalText = blocks.join('\n\n---\n\n');
+  try {
+    await navigator.clipboard.writeText(finalText);
+    const flash = document.getElementById('copiedFlash');
+    flash.style.display = 'inline';
+    setTimeout(() => { flash.style.display = 'none'; }, 2000);
+  } catch (err) {
+    alert('Не удалось скопировать автоматически. Текст:\n\n' + finalText);
+  }
+});
+
+async function markOrdered(ts) {
+  try {
+    await fetch(`${FIREBASE_URL}/supplies/ai_actions/${ts}/ordered.json`, {
+      method: 'PUT',
+      body: JSON.stringify(true)
+    });
+    await fetch(`${FIREBASE_URL}/supplies/ai_actions/${ts}/ordered_at.json`, {
+      method: 'PUT',
+      body: JSON.stringify(Date.now())
+    });
+    loadActions();
+  } catch (err) {
+    alert('Не удалось отметить заказанным: ' + err.message);
+  }
+}
+
+async function deleteAction(ts) {
+  if (!confirm('Удалить эту запись из журнала?')) return;
+  try {
+    await fetch(`${FIREBASE_URL}/supplies/ai_actions/${ts}.json`, {
+      method: 'DELETE'
+    });
+    selectedTs.delete(ts);
+    loadActions();
+  } catch (err) {
+    alert('Не удалось удалить: ' + err.message);
+  }
+}
+
+document.getElementById('actionForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = document.getElementById('actionText').value.trim();
+  if (!text) return;
+  const ts = Date.now();
+  try {
+    await fetch(`${FIREBASE_URL}/supplies/ai_actions/${ts}.json`, {
+      method: 'PUT',
+      body: JSON.stringify({ text, ordered: false, ordered_at: null })
+    });
+    document.getElementById('actionText').value = '';
+    loadActions();
+  } catch (err) {
+    alert('Не удалось записать: ' + err.message);
+  }
+});
+
+document.getElementById('pvzSelect').addEventListener('change', render);
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('hideOrdered').addEventListener('change', render);
+document.getElementById('refreshBtn').addEventListener('click', () => { loadAll(); loadActions(); });
+
+loadAll();
+loadActions();
+</script>
+</body>
+</html>

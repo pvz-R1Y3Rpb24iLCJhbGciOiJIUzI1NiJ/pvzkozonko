@@ -1,0 +1,1291 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Kozonko — претензии Ozon/WB/Яндекс + проверки пункта</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --fg: #1c1e24;
+    --muted: #6b7280;
+    --card: #ffffff;
+    --card2: #f1f2f5;
+    --border: #e3e5ea;
+    --red: #dc2626;
+    --orange: #d97706;
+    --yellow: #b45309;
+    --green: #16a34a;
+    --blue: #2563eb;
+    --purple: #7c3aed;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 20px; margin: 0 0 2px 0; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab {
+    background: var(--card); border: 1px solid var(--border); color: var(--fg);
+    padding: 8px 18px; border-radius: 20px; cursor: pointer; font-size: 14px;
+  }
+  .tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .stats { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat {
+    flex: 1; min-width: 140px; background: var(--card); border: 1px solid var(--border);
+    border-left: 3px solid var(--border); border-radius: 8px; padding: 14px 18px;
+  }
+  .stat .num { font-size: 26px; font-weight: 700; }
+  .stat .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px;}
+  .stat.red { border-left-color: var(--red); }
+  .stat.red .num { color: var(--red); }
+  .stat.orange { border-left-color: var(--orange); }
+  .stat.orange .num { color: var(--orange); }
+  .stat.blue { border-left-color: var(--blue); }
+  .stat.blue .num { color: var(--blue); }
+  .stat.green { border-left-color: var(--green); }
+  .stat.green .num { color: var(--green); }
+
+  .section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 18px; overflow: hidden; }
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 12px;
+    text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+  }
+  .section-head .count { background: var(--red); color: #fff; border-radius: 10px; padding: 1px 9px; font-size: 12px; }
+  .section-head.warn { color: var(--orange); }
+  .section-head.warn .count { background: var(--orange); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 8px 16px; color: var(--muted); font-weight: 500;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 9px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr.claim-row { cursor: pointer; }
+  tr.claim-row:hover td { background: rgba(15,23,42,0.035); }
+  tr.claim-row.is-done td { opacity: .5; }
+  .id { font-family: ui-monospace, monospace; color: var(--muted); font-size: 12px; }
+  .id .tail {
+    color: var(--blue); background: rgba(37,99,235,0.12); border-radius: 5px;
+    padding: 2px 6px; font-weight: 700; letter-spacing: .02em; font-size: 15px;
+  }
+  .badge {
+    display: inline-block; padding: 2px 9px; border-radius: 5px; font-size: 11px; font-weight: 600;
+  }
+  .badge.waiting { background: rgba(255,180,84,0.15); color: var(--orange); }
+  .badge.review { background: rgba(91,155,255,0.15); color: var(--blue); }
+  .badge.new { background: rgba(255,91,91,0.15); color: var(--red); }
+  .badge.expired { color: var(--muted); }
+  .badge.lost { background: rgba(255,91,91,0.18); color: var(--red); }
+  .badge.won { background: rgba(52,199,89,0.18); color: var(--green); }
+  .chip-writeoff { display: inline-block; background: #dc2626; color: #fff; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .badge.manual { background: rgba(124,58,237,0.14); color: var(--purple); }
+  .deadline-urgent { color: var(--red); font-weight: 600; }
+  .deadline-soon { color: var(--orange); font-weight: 600; }
+  .deadline-ok { color: var(--muted); }
+  .deadline-live { white-space: nowrap; }
+  .action-type {
+    display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 600;
+  }
+  .action-type.mount { background: rgba(255,91,91,0.15); color: var(--red); }
+  .action-type.clarify { background: rgba(255,209,102,0.15); color: var(--yellow); }
+  .summary-cell { max-width: 420px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .empty { padding: 30px; text-align: center; color: var(--muted); font-size: 13px; }
+  .refresh {
+    background: var(--card); border: 1px solid var(--border); color: var(--fg);
+    padding: 7px 16px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  }
+  .top-row { display:flex; align-items:center; justify-content: space-between; margin-bottom: 6px; flex-wrap: wrap; gap: 10px; }
+  .updated { color: var(--muted); font-size: 12px; }
+
+  /* ===== Modal ===== */
+  .overlay {
+    display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.4);
+    backdrop-filter: blur(2px); z-index: 100; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; overflow-y: auto;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    width: 100%; max-width: 720px; padding: 0; overflow: hidden;
+    box-shadow: 0 20px 60px rgba(15,23,42,0.18);
+  }
+  .modal-head {
+    padding: 18px 22px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  }
+  .modal-head h2 { font-size: 16px; margin: 0 0 4px 0; }
+  .modal-head .meta { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .modal-close {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 16px; flex-shrink: 0;
+  }
+  .modal-close:hover { color: var(--fg); }
+  .modal-body { padding: 18px 22px; max-height: 70vh; overflow-y: auto; }
+  .modal-section { margin-bottom: 22px; }
+  .modal-section:last-child { margin-bottom: 0; }
+  .modal-section h3 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+    margin: 0 0 10px 0; font-weight: 600;
+  }
+  .kv-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; }
+  .kv-grid dt { color: var(--muted); }
+  .kv-grid dd { margin: 0; }
+
+  /* status control */
+  .status-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+  .status-opt {
+    background: var(--card2); border: 1px solid var(--border); color: var(--fg);
+    padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  }
+  .status-opt:hover { border-color: var(--blue); }
+  .status-opt.selected { border-color: var(--purple); background: rgba(124,58,237,0.12); color: var(--purple); }
+  .status-current {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 12px;
+    background: var(--card2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+  }
+  .status-current .ok { color: var(--green); }
+  .confirm-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+  .btn {
+    border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; cursor: pointer; font-weight: 600;
+  }
+  .btn.primary { background: var(--purple); color: #fff; }
+  .btn.primary:disabled { opacity: .4; cursor: default; }
+  .btn.ghost { background: none; color: var(--muted); border: 1px solid var(--border); }
+  .status-hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .save-state { font-size: 12px; margin-left: 4px; }
+  .save-state.ok { color: var(--green); }
+  .save-state.err { color: var(--red); }
+
+  /* timeline */
+  .timeline { list-style: none; margin: 0; padding: 0; }
+  .timeline li {
+    position: relative; padding: 0 0 16px 26px; border-left: 2px solid var(--border); margin-left: 6px;
+  }
+  .timeline li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .timeline li::before {
+    content: ''; position: absolute; left: -6.5px; top: 2px; width: 11px; height: 11px;
+    border-radius: 50%; background: var(--blue); border: 2px solid var(--card);
+  }
+  .timeline li.t-added::before { background: var(--green); }
+  .timeline li.t-deadline::before { background: var(--orange); }
+  .timeline li.t-chat::before { background: var(--yellow); }
+  .timeline li.t-manual::before { background: var(--purple); }
+  .timeline li.t-status::before { background: var(--blue); }
+  .tl-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .tl-title { font-size: 13px; font-weight: 600; }
+  .tl-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .tl-text { color: var(--muted); font-size: 12.5px; margin-top: 3px; line-height: 1.5; }
+  .tl-empty { color: var(--muted); font-size: 12.5px; font-style: italic; }
+
+  /* ===== «Новое»: непросмотренные претензии + сводка ===== */
+  tr.claim-row.is-new td { background: rgba(37,99,235,0.07); }
+  tr.claim-row.is-new td:first-child { box-shadow: inset 3px 0 0 var(--blue); }
+  .flag-new {
+    display: inline-block; background: var(--blue); color: #fff; border-radius: 5px;
+    padding: 1px 7px; font-size: 10px; font-weight: 700; letter-spacing: .05em;
+    vertical-align: middle; animation: newpulse 2s ease-in-out infinite;
+  }
+  @keyframes newpulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+  .last-ev { color: var(--muted); font-size: 11.5px; margin-top: 3px; max-width: 360px; line-height: 1.35; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  .tab .tabcount {
+    display: inline-block; background: var(--red); color: #fff; border-radius: 10px;
+    padding: 0 7px; font-size: 11px; font-weight: 700; margin-left: 6px;
+  }
+  .tab.active .tabcount { background: #fff; color: var(--blue); }
+  .digest {
+    background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--blue);
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px;
+  }
+  .digest.empty-digest { border-left-color: var(--green); color: var(--muted); }
+  .digest-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .digest-head b { font-size: 13px; }
+  .digest-line { padding: 3px 0; line-height: 1.5; }
+  .digest-line .src { display: inline-block; min-width: 64px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+  .dchip { display: inline-block; border-radius: 999px; padding: 1px 10px; font-size: 12px; font-weight: 600; margin-right: 6px; }
+  .dchip.new { background: rgba(37,99,235,0.12); color: var(--blue); }
+  .dchip.ok { background: rgba(22,163,74,0.14); color: var(--green); }
+  .dchip.bad { background: rgba(220,38,38,0.12); color: var(--red); }
+  .dchip.wait { background: rgba(217,119,6,0.14); color: var(--orange); }
+</style>
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="../core/kz.js" data-role="admin" data-page="claims"></script>
+</head>
+<body>
+<nav style="padding:10px 24px"><a href="claims-reports.html">Удержания и отчёты</a> · <a href="claims-install.html">Скрипт для Ozon и Яндекса</a></nav>
+
+<div class="top-row">
+  <div>
+    <h1>Kozonko · претензии Ozon/WB/Яндекс + проверки пункта</h1>
+    <div class="sub">живой источник — Firebase RTDB (/claims, /claims/wb, /claims/ozon_checks, /claims/yandex)</div>
+  </div>
+  <div style="display:flex; gap:10px; align-items:center;">
+    <span class="updated" id="updatedAt">—</span>
+    <button class="refresh" onclick="loadAll()">↻ Обновить</button>
+  </div>
+</div>
+
+<div class="digest" id="digest" style="display:none"></div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="ozon" data-label="Ozon-претензии" onclick="switchTab('ozon')">Ozon-претензии</div>
+  <div class="tab" data-tab="wb" data-label="WB-претензии" onclick="switchTab('wb')">WB-претензии</div>
+  <div class="tab" data-tab="yandex" data-label="Яндекс-претензии" onclick="switchTab('yandex')">Яндекс-претензии</div>
+  <div class="tab" data-tab="checks" data-label="Проверки пункта" onclick="switchTab('checks')">Проверки пункта</div>
+</div>
+
+<!-- OZON CLAIMS TAB -->
+<div id="tab-ozon">
+  <div class="stats" id="ozonStats"></div>
+  <div class="section">
+    <div class="section-head">
+      <span>Претензии (сначала «ждут ответа», внутри — по сроку)</span>
+      <span class="count" id="ozonCount">0</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>ПВЗ</th><th>Причина</th>
+          <th>Сумма</th><th>Статус</th><th>Срок</th>
+        </tr>
+      </thead>
+      <tbody id="ozonBody"></tbody>
+    </table>
+    <div class="empty" id="ozonEmpty" style="display:none">Нет данных</div>
+  </div>
+</div>
+
+<!-- WB CLAIMS TAB -->
+<div id="tab-wb" style="display:none">
+  <div class="stats" id="wbStats"></div>
+  <div class="section">
+    <div class="section-head">
+      <span>Активные претензии WB (по сроку, ближайший — наверх)</span>
+      <span class="count" id="wbCount">0</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ШК/претензия</th><th>ПВЗ</th><th>Тип</th>
+          <th>Товар</th><th>Сумма</th><th>Статус</th><th>Срок</th>
+        </tr>
+      </thead>
+      <tbody id="wbBody"></tbody>
+    </table>
+    <div class="empty" id="wbEmpty" style="display:none">Нет активных претензий</div>
+  </div>
+  <div class="section" id="wbClosedSection">
+    <div class="section-head">
+      <span>Закрыто (выиграно / удержано / решено)</span>
+      <span class="count" id="wbClosedCount">0</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ШК/претензия</th><th>ПВЗ</th><th>Тип</th>
+          <th>Товар</th><th>Сумма</th><th>Итог</th><th>Срок</th>
+        </tr>
+      </thead>
+      <tbody id="wbClosedBody"></tbody>
+    </table>
+    <div class="empty" id="wbClosedEmpty" style="display:none">Закрытых претензий нет</div>
+  </div>
+  <div class="section">
+    <div class="section-head">
+      <span>Тикеты — ждут ответа WB / зависли</span>
+      <span class="count" id="wbTicketsCount">0</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Тикет</th><th>ПВЗ</th><th>Заметка</th>
+        </tr>
+      </thead>
+      <tbody id="wbTicketsBody"></tbody>
+    </table>
+    <div class="empty" id="wbTicketsEmpty" style="display:none">Нет данных о тикетах</div>
+  </div>
+</div>
+
+<!-- YANDEX CLAIMS TAB -->
+<div id="tab-yandex" style="display:none">
+  <div class="stats" id="yandexStats"></div>
+  <div class="section">
+    <div class="section-head">
+      <span>Претензии Яндекс.Доставки/Маркета</span>
+      <span class="count" id="yandexCount">0</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>ПВЗ</th><th>Причина</th>
+          <th>Сумма</th><th>Статус</th><th>Срок</th>
+        </tr>
+      </thead>
+      <tbody id="yandexBody"></tbody>
+    </table>
+    <div class="empty" id="yandexEmpty">Раздел подготовлен на будущее — данных пока нет. Как только появится
+      источник (кабинет Яндекс.Доставки/Маркета для ПВЗ), сюда будут подтягиваться претензии из
+      Firebase (/claims/yandex/active), с той же логикой сортировки: сначала ждущие ответа, дальше
+      по дедлайну.</div>
+  </div>
+</div>
+
+<!-- QUALITY CHECKS TAB -->
+<div id="tab-checks" style="display:none">
+  <div class="stats" id="checksStats"></div>
+  <div class="section">
+    <div class="section-head warn">
+      <span>Активные проверки (Ozon «Контроль качества»)</span>
+      <span class="count" id="checksCount">0</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>№</th><th>ПВЗ</th><th>Элемент</th>
+          <th>Действие</th><th>Что сделать</th><th>Срок</th>
+        </tr>
+      </thead>
+      <tbody id="checksBody"></tbody>
+    </table>
+    <div class="empty" id="checksEmpty" style="display:none">Нет активных проверок</div>
+  </div>
+</div>
+
+<!-- ===== DETAIL MODAL ===== -->
+<div class="overlay" id="overlay" onclick="if(event.target===this) closeModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h2 id="modalTitle">—</h2>
+        <div class="meta" id="modalMeta"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="claimsWorkflow" class="modal-section"></div>
+      <div class="modal-section">
+        <h3>Сводка</h3>
+        <dl class="kv-grid" id="modalSummary"></dl>
+      </div>
+      <div class="modal-section">
+        <h3>Ручной статус (команда для ИИ / к действию)</h3>
+        <div class="status-current" id="modalStatusCurrent"></div>
+        <div class="status-picker" id="modalStatusPicker"></div>
+        <div class="confirm-row">
+          <button class="btn primary" id="modalConfirmBtn" onclick="confirmManualStatus()" disabled>Подтвердить статус</button>
+          <button class="btn ghost" id="modalCancelBtn" onclick="resetStatusPicker()" style="display:none">Отменить выбор</button>
+          <span class="save-state" id="modalSaveState"></span>
+        </div>
+        <div class="status-hint">Подтверждение записывает статус и галочку прямо в Firebase и добавляет событие в историю ниже — агент увидит это в следующем цикле.</div>
+      </div>
+      <div class="modal-section">
+        <h3>История взаимодействий</h3>
+        <ul class="timeline" id="modalTimeline"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="claims-core.js"></script>
+<script src="claims-workspace.js"></script>
+<script>
+/* ============================================================
+   FIREBASE SCHEMA — гайд для ИИ-агента, который пишет в базу.
+   Дополнительно к уже существующим полям (pvz_code/login/reason_raw/
+   amount/ozon_status/deadline_at и т.д. для /claims; claim_id/pvz/
+   legal_entity/type/reason/product/sum/status/deadline для /claims/wb/active;
+   check_id/pvz/login/element/action_type/action_summary/deadline для
+   /claims/ozon_checks/active) страница дополнительно понимает:
+
+   1) claim_url (string, опционально) — прямая ссылка на карточку
+      претензии/обращения в личном кабинете продавца. Пишется агентом
+      в узел самой претензии:
+        /claims/{claimId}/claim_url                (Ozon)
+        /claims/yandex/active/{claimId}/claim_url   (Яндекс)
+      Если поле есть — номер претензии в таблице становится кликабельной
+      ссылкой, открывающей ЛК в новой вкладке (WB ссылку не показывает,
+      т.к. её кабинет для этого не размечен).
+
+   2) check_url (string, опционально) — то же самое, но для проверок
+      пункта (вкладка «Проверки пункта»):
+        /claims/ozon_checks/active/{checkId}/check_url
+
+   3) history (object, опционально) — журнал событий по конкретной
+      претензии/проверке, ключи — произвольные push-id, значения:
+        { ts: "<ISO-дата-время>", type: "<тип>", text: "<опционально>" }
+      Поддерживаемые type для красивого отображения в таймлайне:
+        - "added"            — «Добавлено в список»
+        - "deadline_updated" — «Актуализирован дедлайн»
+                                (используется как якорь для пересчёта
+                                относительных сроков вроде "3 дня")
+        - "chat_clarify"     — «Запросили уточнения в чате» (text — сам вопрос)
+        - "status_changed"   — смена статуса на стороне маркетплейса
+      Путь для записи:
+        /claims/{claimId}/history/{pushId}
+        /claims/wb/active/{claimId}/history/{pushId}
+        /claims/yandex/active/{claimId}/history/{pushId}
+        /claims/ozon_checks/active/{checkId}/history/{pushId}
+      ПОМЕТКА «NEW» И СВОДКА «ЧТО НОВОГО»: страница показывает NEW у претензии, у которой
+      есть событие "added" или "status_changed" с ts не раньше 05.10.2026 и директор не
+      открывал карточку после этого события. Первый клик по строке пишет в узел поле
+      seen_at (ISO) — агент его НЕ пишет и не стирает. Поэтому: всегда пишите "added" при
+      создании записи и "status_changed" при смене итога (выиграно/списано/оплачено) —
+      тогда в сводке вверху страницы появится, например, «1 новая оплаченная претензия».
+      Страница сама дописывает событие с type: "manual_status", когда
+      директор подтверждает статус вручную — агенту достаточно читать
+      этот узел, отдельно ничего не нужно.
+
+   4) manual_status (object, пишется страницей, агент только читает) —
+      команда директора для агента:
+        { value: "<slug>", label: "<текст>", confirmed_at: "<ISO>", confirmed_by: "director" }
+      и рядом manual_status_confirmed: true — флаг-галочка "подтверждено".
+      Агент должен на каждом цикле проверять это поле и, если confirmed
+      true и раньше не обработано, выполнять соответствующее действие
+      (например, при value "нужно_зачесть" — зачесть претензию) и может
+      сам добавить событие в history с type "status_changed" по итогу.
+
+   5) ВАЖНО, схема Ozon-претензий (/claims/{claimId}) — канонические поля,
+      которые страница ищет В ПЕРВУЮ ОЧЕРЕДЬ: pvz_code (не pvz!), reason_raw
+      (не reason!), amount (не sum!). Страница также понимает запасные имена
+      pvz / reason / sum на случай, если агент в конкретном прогоне написал
+      по-другому — но предпочтительно всегда писать именно pvz_code/reason_raw/
+      amount, чтобы не зависеть от подстраховки в коде и не путать будущих
+      читателей базы.
+   ============================================================ */
+const FB = "https://kozonko-9bff6-default-rtdb.europe-west1.firebasedatabase.app";
+
+const ALL_TABS = ['ozon', 'wb', 'yandex', 'checks'];
+
+// Manual status options offered to the director. `value` is what's written to Firebase.
+const MANUAL_STATUSES = [
+  { value: 'nужно_зачесть', label: 'Нужно зачесть' },
+  { value: 'оспорить',       label: 'Оспорить' },
+  { value: 'ждать_ии',       label: 'Ждать решения ИИ' },
+  { value: 'не_реагировать', label: 'Не реагировать' },
+  { value: 'списано_с_сотрудника', label: 'Списано с сотрудника' },
+];
+
+// Метка ручного статуса в строке: «Списано с сотрудника» — белый текст на красном скруглённом фоне,
+// остальные ручные статусы — прежняя галочка ✓.
+function manualMark(v, isDone) {
+  if (v && v.manual_status && v.manual_status.value === 'списано_с_сотрудника') {
+    return ' <span class="chip-writeoff">Списано с сотрудника</span>';
+  }
+  return isDone ? ' <span class="badge manual">✓</span>' : '';
+}
+// fix accidental cyrillic/latin mix above defensively
+MANUAL_STATUSES[0].value = 'нужно_зачесть';
+
+// In-memory cache of last-loaded rows, keyed by "<source>:<id>", used to reopen the modal
+// and to know where in Firebase to write manual status / history for a given card.
+const CLAIM_INDEX = {};
+
+let deadlineTickHandle = null;
+
+/* ============================================================
+   «Новое» — претензии, которые директор ещё не открывал.
+   Претензия считается НОВОЙ, если:
+     - у неё нет поля seen_at (его пишет страница при первом открытии карточки,
+       общее для всех устройств), и
+     - в history есть событие "added" не раньше NEW_SINCE (старые записи без
+       пометки не засоряют список).
+   Агенту достаточно писать history/{id} = {type:"added", ts} при создании записи —
+   пометка NEW появится сама. Поле seen_at агент не трогает.
+   ============================================================ */
+const NEW_SINCE = new Date('2026-10-05T00:00:00+03:00');
+let UNSEEN = {};  // ключ карточки (CLAIM_INDEX) -> путь в Firebase
+let DIGEST = {};  // сводка по вкладкам
+
+function resetDigest() {
+  UNSEEN = {};
+  DIGEST = { ozon: {}, wb: {}, yandex: {}, checks: {} };
+}
+function digestAdd(tab, kind) { DIGEST[tab][kind] = (DIGEST[tab][kind] || 0) + 1; }
+
+// Время последнего «значимого» события агента: добавление или смена статуса.
+function lastActivityTs(history) {
+  const ts = history.filter(e => (e.type === 'added' || e.type === 'status_changed') && e.ts)
+    .map(e => e.ts).sort().pop();
+  const d = ts ? new Date(ts) : null;
+  return d && !isNaN(d.getTime()) ? d : null;
+}
+// НОВОЕ = было значимое событие после NEW_SINCE и директор открыл карточку раньше этого события
+// (или не открывал вовсе). Так пометка вернётся, если по уже просмотренной претензии что-то изменилось
+// (выиграна, списано, оплачена).
+function isUnseen(v, history) {
+  const act = lastActivityTs(history);
+  if (!act || act < NEW_SINCE) return false;
+  if (!v.seen_at) return true;
+  const seen = new Date(v.seen_at);
+  return isNaN(seen.getTime()) ? true : seen < act;
+}
+function newFlag(unseen) { return unseen ? ' <span class="flag-new">NEW</span>' : ''; }
+function lastEventLine(history) {
+  const withText = history.filter(e => e.text && e.ts).sort((a, b) => String(a.ts).localeCompare(String(b.ts), undefined, {numeric: true}));
+  const e = withText[withText.length - 1];
+  return e ? `<div class="last-ev">${escapeHtml(e.text)}</div>` : '';
+}
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+function chip(cls, n, one, few, many) {
+  return `<span class="dchip ${cls}">${n} ${plural(n, one, few, many)}</span>`;
+}
+
+function renderDigest() {
+  const lines = [];
+  const o = DIGEST.ozon, w = DIGEST.wb, y = DIGEST.yandex, c = DIGEST.checks;
+  const tabNew = {
+    ozon: (o.paid || 0) + (o.cancelled || 0) + (o.waiting || 0) + (o.review || 0),
+    wb: (w.new || 0) + (w.review || 0) + (w.won || 0) + (w.lost || 0),
+    yandex: y.any || 0,
+    checks: c.any || 0,
+  };
+
+  const ozon = [];
+  if (o.paid) ozon.push(chip('ok', o.paid, 'новая оплаченная претензия', 'новые оплаченные претензии', 'новых оплаченных претензий'));
+  if (o.waiting) ozon.push(chip('wait', o.waiting, 'новая претензия ждёт ответа', 'новые претензии ждут ответа', 'новых претензий ждут ответа'));
+  if (o.review) ozon.push(chip('new', o.review, 'новая претензия на рассмотрении', 'новые претензии на рассмотрении', 'новых претензий на рассмотрении'));
+  if (o.cancelled) ozon.push(chip('bad', o.cancelled, 'новая аннулированная', 'новые аннулированные', 'новых аннулированных'));
+  if (ozon.length) lines.push(`<div class="digest-line"><span class="src">Ozon</span>${ozon.join('')}</div>`);
+
+  const wb = [];
+  if (w.new) wb.push(chip('wait', w.new, 'новая претензия — можно оспорить', 'новые претензии — можно оспорить', 'новых претензий — можно оспорить'));
+  if (w.review) wb.push(chip('new', w.review, 'новая оспорена, ждём WB', 'новые оспорены, ждём WB', 'новых оспорены, ждём WB'));
+  if (w.won) wb.push(chip('ok', w.won, 'новая выигранная (удержание снято)', 'новые выигранные (удержание снято)', 'новых выигранных (удержание снято)'));
+  if (w.lost) wb.push(chip('bad', w.lost, 'новое списание', 'новых списания', 'новых списаний'));
+  if (wb.length) lines.push(`<div class="digest-line"><span class="src">WB</span>${wb.join('')}</div>`);
+
+  if (y.any) lines.push(`<div class="digest-line"><span class="src">Яндекс</span>${chip('new', y.any, 'новая претензия', 'новые претензии', 'новых претензий')}</div>`);
+  if (c.any) lines.push(`<div class="digest-line"><span class="src">Проверки</span>${chip('wait', c.any, 'новая проверка пункта', 'новые проверки пункта', 'новых проверок пункта')}</div>`);
+
+  const el = document.getElementById('digest');
+  const unseenCount = Object.keys(UNSEEN).length;
+  if (!lines.length) {
+    el.className = 'digest empty-digest';
+    el.innerHTML = '<b>Новых событий нет</b> — всё, что появилось, уже просмотрено ✓';
+  } else {
+    el.className = 'digest';
+    el.innerHTML = `<div class="digest-head"><b>Что нового (ещё не открывали)</b>` +
+      `<button class="refresh" onclick="markAllSeen()">Отметить всё просмотренным (${unseenCount})</button></div>` +
+      lines.join('');
+  }
+  el.style.display = '';
+
+  document.querySelectorAll('.tab').forEach(t => {
+    const n = tabNew[t.dataset.tab] || 0;
+    t.innerHTML = escapeHtml(t.dataset.label) + (n ? `<span class="tabcount">${n}</span>` : '');
+  });
+}
+
+async function markAllSeen() {
+  const keys = Object.keys(UNSEEN);
+  if (!keys.length) return;
+  const nowIso = new Date().toISOString();
+  const patch = {};
+  keys.forEach(k => { patch[UNSEEN[k].replace(/^\//, '') + '/seen_at'] = nowIso; });
+  try {
+    const res = await fetch(FB + '/.json', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error('Firebase PATCH failed: ' + res.status);
+    loadAll();
+  } catch (err) { console.error(err); alert('Не удалось отметить просмотренными (ошибка записи в Firebase)'); }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  ALL_TABS.forEach(t => {
+    document.getElementById('tab-' + t).style.display = (t === name) ? '' : 'none';
+  });
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ============================================================
+   Deadline handling — single source of truth.
+   Every claim gets a resolved deadline in one of two shapes:
+     - an absolute Date (ISO deadline / deadline_at fields that parse as dates)
+     - a relative "N hours from when the agent last wrote deadline_at" snapshot,
+       for legacy text like "3 дня" / "2 часа" that isn't a real timestamp.
+   Either way we recompute "time left" live, every tick, so labels like
+   "3 дня" age into "2 дня 23 часа" etc. without needing a page reload.
+   ============================================================ */
+
+function tryParseDate(text) {
+  if (!text) return null;
+  const d = new Date(text);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Parse relative Russian text ("3 дня", "Истекло", "2 часа", "45 мин") into hours-from-now.
+function parseRelativeHours(text) {
+  if (!text) return null;
+  const t = text.trim().toLowerCase();
+  if (t.includes('истек')) return -1; // already expired
+  const m = t.match(/(\d+)\s*(час|день|дня|дней|мин)/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  if (m[2].startsWith('час')) return n;
+  if (m[2].startsWith('мин')) return n / 60;
+  return n * 24;
+}
+
+// Build a resolved-deadline descriptor for a claim.
+// rawText: the deadline string/ISO from Firebase (deadline_at / deadline).
+// snapshotAt: ISO timestamp of when that text was last written by the agent (from history,
+//   if available) — used as the anchor for relative text like "3 дня". Falls back to "now"
+//   the first time we see a given raw value (best effort when no history exists yet).
+function resolveDeadline(rawText, snapshotAt) {
+  if (!rawText) return { hoursLeft: Infinity, absolute: null, display: '—', expired: false };
+
+  const asDate = tryParseDate(rawText);
+  if (asDate) {
+    const hoursLeft = (asDate - new Date()) / 36e5;
+    return {
+      hoursLeft,
+      absolute: asDate,
+      display: asDate.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      expired: hoursLeft <= 0,
+    };
+  }
+
+  const relHours = parseRelativeHours(rawText);
+  if (relHours === null) {
+    return { hoursLeft: Infinity, absolute: null, display: rawText, expired: false };
+  }
+  if (relHours < 0) {
+    return { hoursLeft: -1, absolute: null, display: 'Истекло', expired: true };
+  }
+  const anchor = tryParseDate(snapshotAt) || new Date();
+  const absolute = new Date(anchor.getTime() + relHours * 36e5);
+  const hoursLeft = (absolute - new Date()) / 36e5;
+  return {
+    hoursLeft,
+    absolute,
+    display: formatCountdown(hoursLeft),
+    expired: hoursLeft <= 0,
+  };
+}
+
+function formatCountdown(hoursLeft) {
+  if (hoursLeft === Infinity) return '—';
+  if (hoursLeft <= 0) return 'Истекло';
+  const totalMinutes = Math.round(hoursLeft * 60);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days} дн ${hours} ч`;
+  if (hours > 0) return `${hours} ч ${minutes} мин`;
+  return `${minutes} мин`;
+}
+
+function deadlineClassFor(hoursLeft) {
+  if (hoursLeft === Infinity) return 'deadline-ok';
+  if (hoursLeft <= 0) return 'badge expired';
+  if (hoursLeft <= 24) return 'deadline-urgent';
+  if (hoursLeft <= 24 * 5) return 'deadline-soon';
+  return 'deadline-ok';
+}
+
+// Render the last-4-digits highlight for any id/ticket-like string.
+// If `url` is given, the whole id becomes a link that opens the claim card
+// in the marketplace's own seller/LK interface in a new tab.
+function idWithTail(id, url) {
+  const s = String(id ?? '—');
+  const inner = s.length <= 4
+    ? `<span class="tail">${escapeHtml(s)}</span>`
+    : `${escapeHtml(s.slice(0, -4))}<span class="tail">${escapeHtml(s.slice(-4))}</span>`;
+  if (!url) return inner;
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none; color:inherit;" title="Открыть претензию в личном кабинете">${inner} 🔗</a>`;
+}
+
+/* ============================================================
+   Modal / detail view
+   ============================================================ */
+
+let activeClaimKey = null;
+let pendingStatusValue = null;
+
+function openModal(key) {
+  const entry = CLAIM_INDEX[key];
+  if (!entry) return;
+  activeClaimKey = key;
+  pendingStatusValue = null;
+
+  document.getElementById('modalTitle').textContent = entry.title;
+  document.getElementById('modalMeta').textContent = entry.metaLine;
+
+  const kv = document.getElementById('modalSummary');
+  kv.innerHTML = entry.summaryRows.map(([k, v]) =>
+    `<dt>${escapeHtml(k)}</dt><dd>${v}</dd>`
+  ).join('');
+
+  const workHost = document.getElementById("claimsWorkflow");
+  workHost.replaceChildren();
+  if (/^ozon:|^yandex:/.test(key) && window.ClaimsWorkspace) {
+    ClaimsWorkspace.workflow(workHost, entry.basePath, {onSaved: data => {
+      entry.history = historyToArray(data.history);
+      if (activeClaimKey === key) renderTimeline(entry);
+    }});
+  }
+  renderStatusBlock(entry);
+  renderTimeline(entry);
+
+  document.getElementById('overlay').classList.add('open');
+
+  // первый клик по новой претензии = «просмотрено» (пишем seen_at в Firebase, общее для всех устройств)
+  if (UNSEEN[key]) {
+    const basePath = UNSEEN[key];
+    delete UNSEEN[key];
+    fbPatch(basePath, { seen_at: new Date().toISOString() }).then(() => loadAll()).catch(err => console.error(err));
+  }
+}
+
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  activeClaimKey = null;
+  pendingStatusValue = null;
+}
+
+function renderStatusBlock(entry) {
+  const current = document.getElementById('modalStatusCurrent');
+  if (entry.manualStatus && entry.manualStatus.value) {
+    const label = (MANUAL_STATUSES.find(s => s.value === entry.manualStatus.value) || {}).label || entry.manualStatus.value;
+    const when = entry.manualStatus.confirmed_at ? new Date(entry.manualStatus.confirmed_at).toLocaleString('ru-RU') : '';
+    current.innerHTML = `<span class="ok">✓</span> Подтверждено: <b>${escapeHtml(label)}</b>${when ? ' · ' + escapeHtml(when) : ''}`;
+  } else {
+    current.innerHTML = `<span style="color:var(--muted)">Ручной статус ещё не выставлен</span>`;
+  }
+
+  const picker = document.getElementById('modalStatusPicker');
+  picker.innerHTML = MANUAL_STATUSES.map(s =>
+    `<div class="status-opt" data-value="${escapeHtml(s.value)}" onclick="selectStatus('${escapeHtml(s.value)}')">${escapeHtml(s.label)}</div>`
+  ).join('');
+
+  document.getElementById('modalConfirmBtn').disabled = true;
+  document.getElementById('modalCancelBtn').style.display = 'none';
+  document.getElementById('modalSaveState').textContent = '';
+}
+
+function selectStatus(value) {
+  pendingStatusValue = value;
+  document.querySelectorAll('.status-opt').forEach(el => {
+    el.classList.toggle('selected', el.dataset.value === value);
+  });
+  document.getElementById('modalConfirmBtn').disabled = false;
+  document.getElementById('modalCancelBtn').style.display = '';
+  document.getElementById('modalSaveState').textContent = '';
+}
+
+function resetStatusPicker() {
+  pendingStatusValue = null;
+  document.querySelectorAll('.status-opt').forEach(el => el.classList.remove('selected'));
+  document.getElementById('modalConfirmBtn').disabled = true;
+  document.getElementById('modalCancelBtn').style.display = 'none';
+  document.getElementById('modalSaveState').textContent = '';
+}
+
+function renderTimeline(entry) {
+  const ul = document.getElementById('modalTimeline');
+  const events = entry.history || [];
+  if (!events.length) {
+    ul.innerHTML = `<li class="tl-empty">История пока не записана агентом для этой претензии. Как только агент допишет события в /history, они появятся здесь автоматически.</li>`;
+    return;
+  }
+  const sorted = [...events].sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
+  ul.innerHTML = sorted.map(ev => {
+    const cls = 't-' + (ev.type === 'added' ? 'added'
+      : ev.type === 'deadline_updated' ? 'deadline'
+      : ev.type === 'chat_clarify' ? 'chat'
+      : ev.type === 'manual_status' ? 'manual'
+      : 'status');
+    const titleMap = {
+      added: 'Добавлено в список',
+      deadline_updated: 'Актуализирован дедлайн',
+      chat_clarify: 'Запросили уточнения в чате',
+      manual_status: 'Ручной статус подтверждён',
+      status_changed: 'Изменение статуса',
+    };
+    const title = titleMap[ev.type] || (ev.type || 'Событие');
+    const when = ev.ts ? new Date(ev.ts).toLocaleString('ru-RU') : '—';
+    return `<li class="${cls}">
+      <div class="tl-top"><span class="tl-title">${escapeHtml(title)}</span><span class="tl-time">${escapeHtml(when)}</span></div>
+      ${ev.text ? `<div class="tl-text">${escapeHtml(ev.text)}</div>` : ''}
+    </li>`;
+  }).join('');
+}
+
+async function confirmManualStatus() {
+  if (!pendingStatusValue || !activeClaimKey) return;
+  const entry = CLAIM_INDEX[activeClaimKey];
+  if (!entry) return;
+
+  const stateEl = document.getElementById('modalSaveState');
+  stateEl.textContent = 'сохраняю…';
+  stateEl.className = 'save-state';
+
+  const nowIso = new Date().toISOString();
+  const label = (MANUAL_STATUSES.find(s => s.value === pendingStatusValue) || {}).label || pendingStatusValue;
+
+  const manualStatusPayload = {
+    value: pendingStatusValue,
+    label: label,
+    confirmed_at: nowIso,
+    confirmed_by: 'director',
+  };
+
+  try {
+    // 1) write the manual status + a "confirmed" checkbox flag onto the claim itself
+    await fbPatch(entry.basePath, {
+      manual_status: manualStatusPayload,
+      manual_status_confirmed: true,
+    });
+
+    // 2) append a history event so it's visible in the timeline immediately,
+    //    and so the agent can pick it up as a command on its next pass.
+    await fbPost(entry.basePath + '/history', {
+      ts: nowIso,
+      type: 'manual_status',
+      text: `Директор подтвердил статус: «${label}»`,
+    });
+
+    stateEl.textContent = 'сохранено ✓';
+    stateEl.className = 'save-state ok';
+
+    // reflect locally without waiting for a full reload
+    entry.manualStatus = manualStatusPayload;
+    entry.history = entry.history || [];
+    entry.history.push({ ts: nowIso, type: 'manual_status', text: `Директор подтвердил статус: «${label}»` });
+    renderStatusBlock(entry);
+    renderTimeline(entry);
+    resetStatusPicker();
+
+    // refresh underlying tables in the background so badges/sorting reflect the change
+    loadAll();
+  } catch (err) {
+    stateEl.textContent = 'ошибка записи в Firebase';
+    stateEl.className = 'save-state err';
+    console.error(err);
+  }
+}
+
+async function fbPatch(path, data) {
+  const res = await fetch(FB + path + '.json', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Firebase PATCH failed: ' + res.status);
+  return res.json();
+}
+
+async function fbPost(path, data) {
+  const res = await fetch(FB + path + '.json', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Firebase POST failed: ' + res.status);
+  return res.json();
+}
+
+function historyToArray(historyObj) {
+  if (!historyObj) return [];
+  return Object.values(historyObj).filter(v => v && typeof v === 'object');
+}
+
+/* ============================================================
+   Data loaders
+   ============================================================ */
+
+async function loadOzonClaims() {
+  const claims = await fetch(FB + "/claims.json").then(r => r.json()) || {};
+  const rows = Object.entries(claims)
+    .filter(([id, v]) => v && typeof v === 'object' && v.ozon_status);
+
+  const resolved = rows.map(([id, v]) => {
+    const history = historyToArray(v.history);
+    const lastDeadlineEvent = [...history].reverse().find(e => e.type === 'deadline_updated');
+    const dl = resolveDeadline(v.deadline_at, lastDeadlineEvent && lastDeadlineEvent.ts);
+    return { id, v, dl, history };
+  });
+
+  resolved.sort((a, b) => {
+    const aWaiting = a.v.ozon_status === 'Ожидает ответа' ? 0 : 1;
+    const bWaiting = b.v.ozon_status === 'Ожидает ответа' ? 0 : 1;
+    if (aWaiting !== bWaiting) return aWaiting - bWaiting;
+    return a.dl.hoursLeft - b.dl.hoursLeft;
+  });
+
+  const tbody = document.getElementById('ozonBody');
+  tbody.innerHTML = '';
+  let waitingCount = 0, reviewCount = 0, paidCount = 0, cancelledCount = 0;
+
+  for (const { id, v, dl, history } of resolved) {
+    if (v.ozon_status === 'Ожидает ответа') waitingCount++;
+    else reviewCount++;
+    if (v.status === 'paid') paidCount++;
+    if (v.status === 'cancelled') cancelledCount++;
+
+    const badgeClass = v.ozon_status === 'Ожидает ответа' ? 'waiting' : 'review';
+    const key = 'ozon:' + id;
+    const isDone = !!v.manual_status_confirmed;
+    const unseen = isUnseen(v, history);
+    if (unseen) {
+      UNSEEN[key] = '/claims/' + id;
+      digestAdd('ozon', v.status === 'paid' ? 'paid' : v.status === 'cancelled' ? 'cancelled'
+        : v.ozon_status === 'Ожидает ответа' ? 'waiting' : 'review');
+    }
+
+    // Tolerate schema drift: some agent runs wrote pvz/reason/sum instead of the
+    // canonical pvz_code/reason_raw/amount. Accept either so the row never silently
+    // renders as all dashes just because of a field-name mismatch.
+    const pvzVal = v.pvz_code || v.pvz || '—';
+    const reasonVal = v.reason_raw || v.reason || v.claim_type || '—';
+    const amountVal = (v.amount != null) ? v.amount : (v.sum != null ? v.sum : null);
+    const claimUrl = v.claim_url || v.check_url || null;
+
+    CLAIM_INDEX[key] = {
+      basePath: '/claims/' + id,
+      title: 'Ozon-претензия ' + id,
+      metaLine: `ПВЗ ${escapeHtml(pvzVal)}`,
+      summaryRows: [
+        ['ПВЗ', escapeHtml(pvzVal)],
+        ['Причина', escapeHtml(reasonVal) + (v.claim_type && v.claim_type !== reasonVal ? ' (' + escapeHtml(v.claim_type) + ')' : '')],
+        ['Сумма', amountVal != null ? escapeHtml(amountVal) + ' ₽' : '—'],
+        ['Статус Ozon', `<span class="badge ${badgeClass}">${escapeHtml(v.ozon_status)}</span>`],
+        ['Срок', `<span class="${deadlineClassFor(dl.hoursLeft)}">${escapeHtml(dl.display)}</span>`],
+      ],
+      manualStatus: v.manual_status || null,
+      history,
+    };
+
+    const tr = document.createElement('tr');
+    tr.className = 'claim-row' + (isDone ? ' is-done' : '') + (unseen ? ' is-new' : '');
+    tr.onclick = () => openModal(key);
+    tr.innerHTML = `
+      <td class="id">${idWithTail(id, claimUrl)}${newFlag(unseen)}${isDone ? ' <span class="badge manual">✓ зачтено</span>' : ''}${lastEventLine(history)}</td>
+      <td>${escapeHtml(pvzVal)}</td>
+      <td>${escapeHtml(reasonVal)}${v.claim_type && v.claim_type !== reasonVal ? ' <span style="color:var(--muted)">('+escapeHtml(v.claim_type)+')</span>' : ''}</td>
+      <td>${amountVal != null ? escapeHtml(amountVal) + ' ₽' : '—'}</td>
+      <td><span class="badge ${badgeClass}">${escapeHtml(v.ozon_status)}</span></td>
+      <td class="deadline-live ${deadlineClassFor(dl.hoursLeft)}">${escapeHtml(dl.display)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById('ozonCount').textContent = resolved.length;
+  document.getElementById('ozonEmpty').style.display = resolved.length ? 'none' : '';
+
+  document.getElementById('ozonStats').innerHTML = `
+    <div class="stat orange"><div class="num">${waitingCount}</div><div class="label">Ждут ответа</div></div>
+    <div class="stat blue"><div class="num">${reviewCount}</div><div class="label">На рассмотрении</div></div>
+    <div class="stat green"><div class="num">${paidCount}</div><div class="label">Оплачено</div></div>
+    <div class="stat"><div class="num">${cancelledCount}</div><div class="label">Аннулировано</div></div>
+  `;
+}
+
+async function loadQualityChecks() {
+  const checks = await fetch(FB + "/claims/ozon_checks/active.json").then(r => r.json()) || {};
+  const rows = Object.entries(checks);
+
+  const resolved = rows.map(([key, v]) => {
+    const history = historyToArray(v.history);
+    const lastDeadlineEvent = [...history].reverse().find(e => e.type === 'deadline_updated');
+    const dl = resolveDeadline(v.deadline, lastDeadlineEvent && lastDeadlineEvent.ts);
+    return { key, v, dl, history };
+  });
+
+  resolved.sort((a, b) => a.dl.hoursLeft - b.dl.hoursLeft);
+
+  const tbody = document.getElementById('checksBody');
+  tbody.innerHTML = '';
+  let mountCount = 0, clarifyCount = 0, urgentCount = 0;
+
+  for (const { key, v, dl, history } of resolved) {
+    const isMount = v.action_type === 'смонтировать';
+    if (isMount) mountCount++; else clarifyCount++;
+    if (dl.hoursLeft <= 0) urgentCount++;
+
+    const idKey = 'check:' + key;
+    const isDone = !!v.manual_status_confirmed;
+    const unseen = isUnseen(v, history);
+    if (unseen) { UNSEEN[idKey] = '/claims/ozon_checks/active/' + key; digestAdd('checks', 'any'); }
+
+    CLAIM_INDEX[idKey] = {
+      basePath: '/claims/ozon_checks/active/' + key,
+      title: 'Проверка ' + (v.check_id || key),
+      metaLine: `ПВЗ ${v.pvz || '—'}`,
+      summaryRows: [
+        ['ПВЗ', escapeHtml(v.pvz || '—')],
+        ['Элемент', escapeHtml(v.element || '—')],
+        ['Действие', `<span class="action-type ${isMount ? 'mount' : 'clarify'}">${escapeHtml(v.action_type || '—')}</span>`],
+        ['Что сделать', escapeHtml(v.action_summary || '—')],
+        ['Срок', `<span class="${deadlineClassFor(dl.hoursLeft)}">${escapeHtml(dl.display)}</span>`],
+      ],
+      manualStatus: v.manual_status || null,
+      history,
+    };
+
+    const tr = document.createElement('tr');
+    tr.className = 'claim-row' + (isDone ? ' is-done' : '') + (unseen ? ' is-new' : '');
+    tr.onclick = () => openModal(idKey);
+    tr.innerHTML = `
+      <td class="id">${idWithTail(v.check_id || key, v.check_url)}${newFlag(unseen)}${manualMark(v, isDone)}${lastEventLine(history)}</td>
+      <td>${escapeHtml(v.pvz || '—')}</td>
+      <td>${escapeHtml(v.element || '—')}</td>
+      <td><span class="action-type ${isMount ? 'mount' : 'clarify'}">${escapeHtml(v.action_type || '—')}</span></td>
+      <td class="summary-cell">${escapeHtml(v.action_summary || '—')}</td>
+      <td class="deadline-live ${deadlineClassFor(dl.hoursLeft)}">${escapeHtml(dl.display)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById('checksCount').textContent = resolved.length;
+  document.getElementById('checksEmpty').style.display = resolved.length ? 'none' : '';
+
+  document.getElementById('checksStats').innerHTML = `
+    <div class="stat red"><div class="num">${mountCount}</div><div class="label">Смонтировать</div></div>
+    <div class="stat orange"><div class="num">${clarifyCount}</div><div class="label">Уточнить</div></div>
+    <div class="stat orange"><div class="num">${urgentCount}</div><div class="label">Срок сегодня/просрочен</div></div>
+    <div class="stat blue"><div class="num">${resolved.length}</div><div class="label">Всего активных</div></div>
+  `;
+}
+
+function wbStatusLabel(status) {
+  // 4 реальных статуса: Новый / На рассмотрении / Списано / Оспорено
+  const map = {
+    new: 'Новый', waiting_for_user: 'Новый', prepared_not_sent: 'Новый',
+    in_ticket: 'На рассмотрении', disputed_by_user: 'На рассмотрении',
+    withheld: 'Списано', lost: 'Списано',
+    won: 'Оспорено', resolved: 'Оспорено',
+  };
+  return map[status] || status || '—';
+}
+
+function wbStatusBadgeClass(status) {
+  if (['new', 'waiting_for_user', 'prepared_not_sent'].includes(status)) return 'new';
+  if (['in_ticket', 'disputed_by_user'].includes(status)) return 'review';
+  if (['withheld', 'lost'].includes(status)) return 'lost';
+  if (['won', 'resolved'].includes(status)) return 'won';
+  return 'waiting';
+}
+
+async function loadWbClaims() {
+  const wb = await fetch(FB + "/claims/wb.json").then(r => r.json()) || {};
+  const active = wb.active || {};
+
+  const resolved = Object.entries(active).map(([key, v]) => {
+    const history = historyToArray(v.history);
+    const lastDeadlineEvent = [...history].reverse().find(e => e.type === 'deadline_updated');
+    const dl = resolveDeadline(v.deadline, lastDeadlineEvent && lastDeadlineEvent.ts);
+    return { key, v, dl, history };
+  });
+
+  // Закрытые (итог известен) — отдельным блоком внизу; активные — по сроку, без срока в конце
+  const CLOSED = ['won', 'withheld', 'lost', 'resolved', 'closed', 'paid'];
+  const hrs = r => (r.dl.hoursLeft === Infinity || isNaN(r.dl.hoursLeft)) ? 1e12 : r.dl.hoursLeft;
+  const closedList = resolved.filter(r => CLOSED.includes(r.v.status));
+  const activeList = resolved.filter(r => !CLOSED.includes(r.v.status));
+  activeList.sort((a, b) => hrs(a) - hrs(b));
+  closedList.sort((a, b) => String((b.v.held_at || b.v.deadline || '')).localeCompare(String(a.v.held_at || a.v.deadline || '')));
+  resolved.length = 0;
+  resolved.push(...activeList);
+
+  const tbody = document.getElementById('wbBody');
+  tbody.innerHTML = '';
+  const closedBody = document.getElementById('wbClosedBody');
+  closedBody.innerHTML = '';
+
+  for (const { key, v, dl, history, closed } of [...activeList, ...closedList.map(r => ({ ...r, closed: true }))]) {
+    const idKey = 'wb:' + key;
+    const isDone = !!v.manual_status_confirmed;
+    const unseen = isUnseen(v, history);
+    if (unseen) { UNSEEN[idKey] = '/claims/wb/active/' + key; digestAdd('wb', wbStatusBadgeClass(v.status)); }
+
+    CLAIM_INDEX[idKey] = {
+      basePath: '/claims/wb/active/' + key,
+      title: 'WB-претензия ' + (v.claim_id || key),
+      metaLine: `ПВЗ ${v.pvz || '—'}`,
+      summaryRows: [
+        ['ПВЗ', escapeHtml(v.pvz || '—')],
+        ['Тип', escapeHtml(v.type || '—') + ' (' + escapeHtml(v.reason || '—') + ')'],
+        ['Товар', escapeHtml(v.product || '—')],
+        ['Сумма', v.sum != null ? escapeHtml(v.sum) + ' ₽' : '—'],
+        ['Статус WB', `<span class="badge ${wbStatusBadgeClass(v.status)}">${escapeHtml(wbStatusLabel(v.status))}</span>`],
+        ['Срок', `<span class="${deadlineClassFor(dl.hoursLeft)}">${escapeHtml(dl.display)}</span>`],
+      ],
+      manualStatus: v.manual_status || null,
+      history,
+    };
+
+    const tr = document.createElement('tr');
+    tr.className = 'claim-row' + (isDone ? ' is-done' : '') + (unseen ? ' is-new' : '');
+    tr.onclick = () => openModal(idKey);
+    tr.innerHTML = `
+      <td class="id">${idWithTail(v.claim_id || key)}${newFlag(unseen)}${manualMark(v, isDone)}${lastEventLine(history)}</td>
+      <td>${escapeHtml(v.pvz || '—')}</td>
+      <td>${escapeHtml(v.type || '—')} <span style="color:var(--muted)">(${escapeHtml(v.reason || '—')})</span></td>
+      <td>${escapeHtml(v.product || '—')}</td>
+      <td>${v.sum != null ? escapeHtml(v.sum) + ' ₽' : '—'}</td>
+      <td><span class="badge ${wbStatusBadgeClass(v.status)}">${escapeHtml(wbStatusLabel(v.status))}</span></td>
+      <td class="deadline-live ${deadlineClassFor(dl.hoursLeft)}">${escapeHtml(dl.display)}</td>
+    `;
+    (closed ? closedBody : tbody).appendChild(tr);
+  }
+
+  document.getElementById('wbClosedCount').textContent = closedList.length;
+  document.getElementById('wbClosedEmpty').style.display = closedList.length ? 'none' : '';
+  document.getElementById('wbCount').textContent = resolved.length;
+  document.getElementById('wbEmpty').style.display = resolved.length ? 'none' : '';
+
+  const cls = r => wbStatusBadgeClass(r.v.status);
+  const nNew = activeList.filter(r => cls(r) === 'new').length;
+  const nReview = activeList.filter(r => cls(r) === 'review').length;
+  const nLost = closedList.filter(r => cls(r) === 'lost').length;
+  const nWon = closedList.filter(r => cls(r) === 'won').length;
+
+  document.getElementById('wbStats').innerHTML = `
+    <div class="stat orange"><div class="num">${nNew}</div><div class="label">Новый (можно оспорить)</div></div>
+    <div class="stat blue"><div class="num">${nReview}</div><div class="label">На рассмотрении</div></div>
+    <div class="stat red"><div class="num">${nLost}</div><div class="label">Списано</div></div>
+    <div class="stat green"><div class="num">${nWon}</div><div class="label">Оспорено</div></div>
+  `;
+
+  // Tickets summary
+  const summary = wb.tickets_summary || {};
+  const waiting = summary.waiting_for_wb || [];
+  const stale = summary.stale_tickets || [];
+  const ticketsBody = document.getElementById('wbTicketsBody');
+  ticketsBody.innerHTML = '';
+
+  for (const t of waiting) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="id">${idWithTail('№' + t.ticket_id)}</td>
+      <td>${escapeHtml(t.pvz || '—')}</td>
+      <td class="summary-cell"><span class="badge waiting">ждём WB</span> ${escapeHtml(t.note || '')}</td>
+    `;
+    ticketsBody.appendChild(tr);
+  }
+  for (const t of stale) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="id">${idWithTail('№' + t.ticket_id)}</td>
+      <td>${escapeHtml(t.pvz || '—')}</td>
+      <td class="summary-cell"><span class="badge expired">зависший</span> ${escapeHtml(t.note || '')}</td>
+    `;
+    ticketsBody.appendChild(tr);
+  }
+
+  const ticketsTotal = waiting.length + stale.length;
+  document.getElementById('wbTicketsCount').textContent = ticketsTotal;
+  document.getElementById('wbTicketsEmpty').style.display = ticketsTotal ? 'none' : '';
+}
+
+async function loadYandexClaims() {
+  let yandex = null;
+  try {
+    yandex = await fetch(FB + "/claims/yandex/active.json").then(r => r.json());
+  } catch (e) {
+    yandex = null;
+  }
+
+  const resolved = (yandex ? Object.entries(yandex) : []).map(([id, v]) => {
+    const history = historyToArray(v.history);
+    const lastDeadlineEvent = [...history].reverse().find(e => e.type === 'deadline_updated');
+    const dl = resolveDeadline(v.deadline_at || v.deadline, lastDeadlineEvent && lastDeadlineEvent.ts);
+    return { id, v, dl, history };
+  });
+
+  resolved.sort((a, b) => a.dl.hoursLeft - b.dl.hoursLeft);
+
+  const tbody = document.getElementById('yandexBody');
+  tbody.innerHTML = '';
+
+  for (const { id, v, dl, history } of resolved) {
+    const idKey = 'yandex:' + id;
+    const isDone = !!v.manual_status_confirmed;
+    const unseen = isUnseen(v, history);
+    if (unseen) { UNSEEN[idKey] = '/claims/yandex/active/' + id; digestAdd('yandex', 'any'); }
+
+    CLAIM_INDEX[idKey] = {
+      basePath: '/claims/yandex/active/' + id,
+      title: 'Яндекс-претензия ' + id,
+      metaLine: `ПВЗ ${v.pvz_code || v.pvz || v.pvz_address || '—'}`,
+      summaryRows: [
+        ['ПВЗ', escapeHtml(v.pvz_code || v.pvz || v.pvz_address || '—')],
+        ['Причина', escapeHtml(v.reason_raw || v.reason || '—')],
+        ['Сумма', v.amount != null ? escapeHtml(v.amount) + ' ₽' : '—'],
+        ['Статус', escapeHtml(v.marketplace_status || v.status || '—')],
+        ['Срок', `<span class="${deadlineClassFor(dl.hoursLeft)}">${escapeHtml(dl.display)}</span>`],
+      ],
+      manualStatus: v.manual_status || null,
+      history,
+    };
+
+    const tr = document.createElement('tr');
+    tr.className = 'claim-row' + (isDone ? ' is-done' : '') + (unseen ? ' is-new' : '');
+    tr.onclick = () => openModal(idKey);
+    tr.innerHTML = `
+      <td class="id">${idWithTail(id, v.claim_url)}${newFlag(unseen)}${manualMark(v, isDone)}${lastEventLine(history)}</td>
+      <td>${escapeHtml(v.pvz_code || v.pvz || v.pvz_address || '—')}</td>
+      <td>${escapeHtml(v.reason_raw || v.reason || '—')}</td>
+      <td>${v.amount != null ? escapeHtml(v.amount) + ' ₽' : '—'}</td>
+      <td>${escapeHtml(v.marketplace_status || v.status || '—')}</td>
+      <td class="deadline-live ${deadlineClassFor(dl.hoursLeft)}">${escapeHtml(dl.display)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById('yandexCount').textContent = resolved.length;
+  document.getElementById('yandexEmpty').style.display = resolved.length ? 'none' : '';
+}
+
+let loadingNow = false;
+async function loadAll() {
+  if (loadingNow) return;  // не запускаем наложенные загрузки — иначе счётчики «нового» задвоятся
+  loadingNow = true;
+  try {
+    resetDigest();
+    await Promise.all([loadOzonClaims(), loadWbClaims(), loadYandexClaims(), loadQualityChecks()]);
+    renderDigest();
+    document.getElementById('updatedAt').textContent = 'обновлено ' + new Date().toLocaleString('ru-RU');
+  } finally {
+    loadingNow = false;
+  }
+}
+
+// Recompute only the live countdown labels + sort order every tick, without refetching Firebase.
+function tickDeadlines() {
+  loadAll();
+}
+
+loadAll().then(() => {
+  const requested = new URLSearchParams(location.search).get('claim');
+  if (requested && CLAIM_INDEX[requested]) { switchTab(requested.split(':')[0]); openModal(requested); }
+});
+// Auto-refresh from Firebase + re-sort every 60s so deadlines age and new agent writes appear
+// without a manual reload.
+deadlineTickHandle = setInterval(tickDeadlines, 60000);
+</script>
+
+</body>
+</html>

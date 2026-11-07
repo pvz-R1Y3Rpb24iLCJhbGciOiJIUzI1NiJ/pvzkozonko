@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ПВЗ Тесты</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="core/kz.js" data-role="staff" data-page="tests"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        
+        :root {
+            --tw-color-primary: #f59e0b;
+        }
+        
+        * {
+            transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 200ms;
+        }
+        
+        .tailwind-ready .card-hover:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 25px -5px rgb(245 158 11 / 0.15), 0 8px 10px -6px rgb(245 158 11 / 0.15);
+        }
+        
+        .modal {
+            animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        @keyframes modalPop {
+            0% { transform: scale(0.95); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .toast {
+            animation: toastIn 0.3s ease forwards;
+        }
+        
+        .progress-bar {
+            transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .question-card {
+            animation: fadeInUp 0.4s ease forwards;
+        }
+        
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .option {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .option-selected {
+            border-color: #f59e0b;
+            background-color: #fffbeb;
+            box-shadow: 0 0 0 3px rgb(245 158 11 / 0.2);
+        }
+        
+        .editor-question {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Запрет копирования текста во время прохождения теста */
+        #test-screen, #result-screen {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        /* Разрешаем копирование только в редакторе и полях ввода */
+        textarea, input, [contenteditable] {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+        }
+        
+        .rich-editor {
+            min-height: 130px;
+            padding: 1.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 1rem;
+            outline: none;
+            line-height: 1.6;
+        }
+        
+        .rich-editor:focus {
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgb(245 158 11 / 0.2);
+        }
+    </style>
+</head>
+<body class="tailwind-ready bg-white min-h-screen font-sans">
+    <!-- NAVBAR -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 md:px-6">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-x-3">
+                    <div class="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-600 rounded-2xl flex items-center justify-center text-white text-2xl shadow-inner">
+                        📦
+                    </div>
+                    <h1 class="text-2xl font-semibold tracking-[-0.5px] text-slate-900" style="font-family: 'Space Grotesk', sans-serif;">
+                        ПВЗ Тесты
+                    </h1>
+                </div>
+               
+                <div class="flex items-center gap-x-2">
+                    <button onclick="showUserView()"
+                            id="nav-user-btn"
+                            class="nav-btn flex items-center gap-x-2 px-4 md:px-6 py-2.5 rounded-3xl text-sm font-semibold text-slate-700 hover:bg-slate-100 active:bg-slate-200">
+                        <i class="fa-solid fa-house"></i>
+                        <span class="hidden sm:inline">Тесты</span>
+                    </button>
+                    <button onclick="showAdminLoginModal()"
+                            id="nav-admin-btn"
+                            class="flex items-center gap-x-2 px-4 md:px-6 py-2.5 rounded-3xl text-sm font-semibold bg-gradient-to-r from-orange-500 to-amber-600 text-white hover:shadow-lg hover:shadow-amber-500/30">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span class="hidden sm:inline">Админ-панель</span>
+                    </button>
+                   
+                    <div id="firebase-status" onclick="checkFirebaseConnection()"
+                         class="flex items-center gap-x-1.5 text-xs px-3 md:px-4 py-1 bg-emerald-100 text-emerald-700 rounded-3xl cursor-pointer">
+                        <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                        <span class="hidden sm:inline">Firebase подключён</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+   
+    <!-- MAIN CONTAINER -->
+    <div class="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8" id="main-content">
+       
+        <!-- USER VIEW -->
+        <div id="user-view">
+            <div class="flex justify-between items-end mb-8">
+                <div>
+                    <h2 class="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">Выберите тест</h2>
+                    <p class="text-slate-500 mt-1 text-base">Пройдите обучение и получите код ПВЗ</p>
+                </div>
+                <div class="flex items-center text-sm text-slate-400">
+                    <i class="fa-solid fa-database mr-2"></i>
+                    <span id="tests-count">0 тестов</span>
+                </div>
+            </div>
+           
+            <div id="tests-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                <!-- Заполняется JS -->
+            </div>
+           
+            <div id="no-tests" class="hidden flex flex-col items-center justify-center py-16 text-center">
+                <i class="fa-solid fa-folder-open text-6xl text-slate-300 mb-6"></i>
+                <h3 class="text-xl font-medium text-slate-400">Пока нет тестов</h3>
+                <p class="text-slate-500 mt-2 max-w-xs">Администратор ещё не добавил ни одного теста.</p>
+            </div>
+        </div>
+       
+        <!-- ADMIN VIEW -->
+        <div id="admin-view" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-semibold tracking-tight flex items-center gap-x-3">
+                    <i class="fa-solid fa-shield-halved text-amber-500"></i>
+                    Админ-панель
+                </h2>
+                <div class="flex items-center gap-x-4">
+                    <button onclick="logoutAdmin()"
+                            class="flex items-center gap-x-2 text-sm font-medium text-slate-500 hover:text-red-600">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                        <span>Выйти</span>
+                    </button>
+                </div>
+            </div>
+           
+            <div class="flex border-b border-slate-200 mb-8">
+                <button onclick="switchAdminTab(0)"
+                        id="tab-tests"
+                        class="admin-tab active flex-1 md:flex-none px-6 py-4 font-semibold text-slate-700 flex items-center justify-center gap-x-2 border-b-2 border-transparent hover:text-amber-600">
+                    <i class="fa-solid fa-file-lines"></i>
+                    <span>Тесты</span>
+                </button>
+                <button onclick="switchAdminTab(1)"
+                        id="tab-responses"
+                        class="admin-tab flex-1 md:flex-none px-6 py-4 font-semibold text-slate-700 flex items-center justify-center gap-x-2 border-b-2 border-transparent hover:text-amber-600">
+                    <i class="fa-solid fa-users"></i>
+                    <span>Ответы</span>
+                    <span id="responses-badge" class="ml-2 px-2.5 py-0.5 text-[10px] bg-amber-500 text-white rounded-full">0</span>
+                </button>
+            </div>
+           
+            <!-- ВКЛАДКА ТЕСТЫ -->
+            <div id="admin-tests-tab">
+                <div class="flex gap-x-3 mb-6">
+                    <button onclick="createNewTest()"
+                            class="flex-1 md:flex-none bg-gradient-to-r from-orange-500 to-amber-600 text-white px-8 py-4 rounded-3xl font-semibold flex items-center justify-center gap-x-3 hover:shadow-xl hover:shadow-amber-500/30">
+                        <i class="fa-solid fa-plus"></i>
+                        Создать тест
+                    </button>
+                  
+                    <button onclick="exportTests()"
+                            class="flex-1 md:flex-none border border-slate-300 hover:border-slate-400 px-8 py-4 rounded-3xl font-medium flex items-center justify-center gap-x-3">
+                        <i class="fa-solid fa-download"></i>
+                        Экспорт
+                    </button>
+                  
+                    <label onclick="document.getElementById('import-input').click()"
+                           class="flex-1 md:flex-none border border-slate-300 hover:border-slate-400 px-8 py-4 rounded-3xl font-medium flex items-center justify-center gap-x-3 cursor-pointer">
+                        <i class="fa-solid fa-upload"></i>
+                        Импорт
+                        <input type="file" id="import-input" accept=".json" class="hidden" onchange="importTests(event)">
+                    </label>
+                </div>
+               
+                <div id="admin-tests-list" class="space-y-4">
+                    <!-- Заполняется JS -->
+                </div>
+            </div>
+           
+            <!-- ВКЛАДКА ОТВЕТЫ -->
+            <div id="admin-responses-tab" class="hidden">
+                <div class="flex justify-end mb-4">
+                    <button onclick="refreshResponses()"
+                            class="flex items-center gap-x-2 text-sm font-medium px-6 py-3 rounded-3xl border border-slate-300 hover:bg-slate-50">
+                        <i class="fa-solid fa-rotate"></i>
+                        Обновить
+                    </button>
+                </div>
+              
+                <div class="overflow-x-auto">
+                    <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-w-full">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b text-xs font-medium text-slate-400 uppercase">
+                                    <th class="py-5 px-6 text-left">Дата</th>
+                                    <th class="py-5 px-6 text-left">ФИО / Телефон</th>
+                                    <th class="py-5 px-6 text-left">Тест</th>
+                                    <th class="py-5 px-6 text-center">%</th>
+                                    <th class="py-5 px-6 text-center">Код</th>
+                                    <th class="py-5 px-6 text-center">Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody id="responses-table" class="divide-y text-sm">
+                                <!-- Заполняется JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+       
+        <!-- ЭКРАН ПРОХОЖДЕНИЯ ТЕСТА -->
+        <div id="test-screen" class="hidden px-4 md:px-0">
+            <div class="max-w-2xl mx-auto">
+                <div class="flex items-center justify-between mb-6">
+                    <div onclick="exitTest()" class="flex items-center gap-x-2 text-slate-400 hover:text-slate-600 cursor-pointer">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        <span class="font-medium text-sm md:text-base">Назад</span>
+                    </div>
+                    <div id="test-title-header" class="text-xl font-semibold text-slate-800 text-center flex-1 px-4"></div>
+                    <div class="flex items-center gap-x-3">
+                        <div id="progress-text" class="text-sm font-medium text-slate-400 tabular-nums"></div>
+                        <div class="w-48 md:w-64 h-2.5 bg-slate-100 rounded-3xl overflow-hidden">
+                            <div id="progress-bar" class="progress-bar h-2.5 bg-gradient-to-r from-orange-400 to-amber-600 rounded-3xl"></div>
+                        </div>
+                    </div>
+                </div>
+               
+                <div class="bg-white rounded-3xl shadow-md border border-slate-100 p-6 md:p-8 mb-8 question-card" id="question-card">
+                    <div id="current-section" class="text-xs font-medium text-amber-600 mb-2"></div>
+                    
+                    <div id="question-number" class="inline-flex items-center px-5 h-9 bg-amber-100 text-amber-700 rounded-3xl text-sm font-semibold mb-6"></div>
+                    <div id="question-text" class="text-2xl md:text-3xl leading-tight font-medium text-slate-800 mb-10"></div>
+                  
+                    <div id="options-container" class="space-y-3">
+                        <!-- Заполняется JS -->
+                    </div>
+                   
+                    <div id="explanation-block" class="hidden mt-8 p-6 rounded-2xl border">
+                        <div id="explanation-icon" class="flex items-center mb-3"></div>
+                        <div id="explanation-text" class="text-slate-700 leading-relaxed"></div>
+                    </div>
+                </div>
+               
+                <button onclick="nextQuestion()"
+                        id="next-btn"
+                        class="hidden w-full py-6 text-xl font-semibold bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-3xl flex items-center justify-center gap-x-3 shadow-lg">
+                    Далее
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+       
+        <!-- ЭКРАН РЕЗУЛЬТАТОВ -->
+        <div id="result-screen" class="hidden px-4 max-w-2xl mx-auto bg-white rounded-3xl shadow-xl p-8 md:p-10 text-center">
+            <div id="result-icon" class="mx-auto w-20 h-20 flex items-center justify-center text-6xl mb-6"></div>
+            <h2 id="result-title" class="text-4xl font-semibold mb-2"></h2>
+            <p id="result-subtitle" class="text-xl text-slate-500 mb-8"></p>
+          
+            <div class="flex justify-center mb-8">
+                <div class="text-center px-10">
+                    <div class="text-6xl font-semibold text-slate-900" id="result-percent">85%</div>
+                    <div class="text-sm uppercase tracking-widest text-slate-400 mt-1">Правильных</div>
+                </div>
+            </div>
+           
+            <div id="success-code-block" class="hidden">
+                <div class="text-sm font-medium text-emerald-600 mb-3">Ваш уникальный код ПВЗ</div>
+                <div onclick="copyCode()" id="pvz-code"
+                     class="cursor-pointer flex items-center justify-center gap-x-4 bg-slate-900 text-white text-4xl font-mono tracking-[3px] py-6 px-10 rounded-3xl mx-auto max-w-xs hover:bg-emerald-600">
+                    PVZ-XXXXXX
+                    <i class="fa-solid fa-copy text-2xl"></i>
+                </div>
+                <p class="text-xs text-emerald-600 mt-4">Нажмите, чтобы скопировать</p>
+            </div>
+           
+            <div class="mt-12 flex flex-col gap-3 md:flex-row md:gap-4 justify-center">
+                <button onclick="restartTest()"
+                        class="px-10 py-5 rounded-3xl border-2 border-slate-300 font-medium flex items-center justify-center gap-x-3 hover:bg-slate-100">
+                    <i class="fa-solid fa-rotate"></i>
+                    Пройти ещё раз
+                </button>
+                <button onclick="exitTest()"
+                        class="px-10 py-5 bg-slate-900 text-white rounded-3xl font-semibold flex items-center justify-center gap-x-3">
+                    К тестам
+                    <i class="fa-solid fa-house"></i>
+                </button>
+            </div>
+          
+            <p id="result-saved" class="text-xs text-slate-400 mt-8 flex items-center justify-center gap-x-2">
+                <i class="fa-solid fa-check-circle"></i>
+                Результат сохранён
+            </p>
+        </div>
+    </div>
+   
+    <!-- МОДАЛКА ВВОДА ДАННЫХ -->
+    <div onclick="if(event.target.id === 'name-modal'){hideNameModal()}"
+         id="name-modal"
+         class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] px-4">
+        <div onclick="event.stopImmediatePropagation()"
+             class="modal bg-white rounded-3xl w-full max-w-md mx-auto p-8">
+            <h3 class="text-2xl font-semibold mb-2">Ваши данные</h3>
+            <p class="text-slate-500 mb-8">ФИО или телефон — это ваш идентификатор</p>
+          
+            <input id="user-name-input"
+                   type="text"
+                   placeholder="Иванов Иван Иванович или +7 999 123-45-67"
+                   class="w-full border border-slate-300 focus:border-amber-400 rounded-3xl px-6 py-5 text-lg outline-none">
+          
+            <div class="mt-8 flex gap-x-4">
+                <button onclick="hideNameModal()"
+                        class="flex-1 py-5 font-medium text-slate-500 border border-slate-300 rounded-3xl">Отмена</button>
+                <button onclick="startTestAfterName()"
+                        class="flex-1 py-5 bg-gradient-to-r from-orange-400 to-amber-600 text-white font-semibold rounded-3xl">Начать</button>
+            </div>
+        </div>
+    </div>
+   
+    <!-- МОДАЛКА АДМИН-ПАРОЛЯ -->
+    <div onclick="if(event.target.id === 'admin-modal'){hideAdminModal()}"
+         id="admin-modal"
+         class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-[10000] px-4">
+        <div onclick="event.stopImmediatePropagation()"
+             class="modal bg-white rounded-3xl w-full max-w-sm mx-auto p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-semibold">Вход в админку</h3>
+                <i onclick="hideAdminModal()" class="fa-solid fa-xmark text-2xl cursor-pointer"></i>
+            </div>
+            <input id="admin-password"
+                   type="password"
+                   placeholder="Введите пароль"
+                   class="w-full border border-slate-300 focus:border-amber-400 rounded-3xl px-6 py-5 text-lg outline-none mb-6">
+            <button onclick="checkAdminPassword()"
+                    class="w-full py-5 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-semibold rounded-3xl text-lg">Войти</button>
+        </div>
+    </div>
+   
+    <!-- МОДАЛКА РЕДАКТОРА ТЕСТА -->
+    <div id="editor-modal"
+         class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-[11000] px-4 py-8 overflow-y-auto">
+        <div onclick="event.stopImmediatePropagation()"
+             class="modal bg-white rounded-3xl w-full max-w-4xl mx-auto shadow-2xl flex flex-col max-h-[90vh]">
+          
+            <div class="px-6 md:px-8 pt-8 pb-4 border-b flex items-center justify-between">
+                <h2 class="text-2xl font-semibold" id="editor-title">Редактирование теста</h2>
+                <div class="flex items-center gap-x-6">
+                    <div class="flex items-center gap-x-3">
+                        <label class="text-sm font-medium">Проходной балл</label>
+                        <input type="range" id="passing-slider" min="50" max="100" value="70"
+                               oninput="document.getElementById('passing-value').innerText = this.value + '%'"
+                               class="accent-amber-500 w-40">
+                        <span id="passing-value" class="font-mono w-12 text-right">70%</span>
+                    </div>
+                  
+                    <label class="flex items-center gap-x-3 cursor-pointer">
+                        <input type="checkbox" id="show-explanations-checkbox" class="accent-amber-500 w-5 h-5">
+                        <span class="text-sm font-medium">Пояснения</span>
+                    </label>
+                  
+                    <button onclick="hideEditorModal()"
+                            class="px-6 py-3 text-slate-400 hover:text-slate-600">
+                        <i class="fa-solid fa-xmark text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+           
+            <div class="flex-1 overflow-auto px-6 md:px-8 py-6" id="editor-content">
+                <input id="test-name-input" type="text" placeholder="Название теста"
+                       class="w-full text-3xl font-medium outline-none border-b pb-4 mb-8">
+              
+                <div id="questions-editor-list" class="space-y-8">
+                    <!-- Заполняется JS -->
+                </div>
+                
+                <div class="mt-8 flex justify-center">
+                    <button onclick="addNewQuestion()"
+                            class="flex items-center gap-x-3 bg-amber-50 hover:bg-amber-100 text-amber-700 px-8 py-4 rounded-3xl font-medium">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Добавить новый вопрос</span>
+                    </button>
+                </div>
+            </div>
+           
+            <div class="p-6 md:p-8 border-t flex justify-end gap-x-4 bg-slate-50 rounded-b-3xl">
+                <button onclick="hideEditorModal()"
+                        class="px-8 py-4 font-medium border border-slate-300 rounded-3xl">Отмена</button>
+                <button onclick="saveTestFromEditor()"
+                        class="px-8 py-4 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-semibold rounded-3xl">Сохранить тест</button>
+            </div>
+        </div>
+    </div>
+   
+    <!-- TOAST -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-[99999] flex flex-col gap-y-2"></div>
+   
+    <script>
+        // ==================== FIREBASE CONFIG ====================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDgpd51erVNy_PwSbYTXPISALNMmYtgTN8",
+            authDomain: "kozonko-9bff6.firebaseapp.com",
+            databaseURL: "https://kozonko-9bff6-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "kozonko-9bff6",
+            storageBucket: "kozonko-9bff6.appspot.com",
+            messagingSenderId: "128059740430",
+            appId: "1:128059740430:web:5c923c4e9d912be196c75f"
+        };
+       
+        // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
+        let app, db;
+        let tests = {};
+        let responsesData = [];
+        let isAdminLoggedIn = false;
+        const ADMIN_PASSWORD = "s0000ser1";
+      
+        let currentTestKey = null;
+        let currentTestData = null;
+        let currentUserName = "";
+        let userAnswers = [];
+        let currentQuestionIndex = 0;
+       
+        let editingTestKey = null;
+        let editingTestData = null;
+       
+        // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+        function initializeFirebase() {
+            try {
+                app = firebase.initializeApp(firebaseConfig);
+                db = firebase.database();
+              
+                const testsRef = db.ref('pvzTests/tests');
+                testsRef.on('value', (snapshot) => {
+                    tests = snapshot.val() || {};
+                    document.getElementById('tests-count').innerHTML =
+                        `<i class="fa-solid fa-circle-check mr-1"></i>${Object.keys(tests).length} тестов`;
+                    if (document.getElementById('user-view').style.display !== 'none') {
+                        renderTestsGrid();
+                    }
+                    if (isAdminLoggedIn) {
+                        renderAdminTestsList();
+                    }
+                });
+               
+                console.log('%c✅ Firebase подключён', 'color:#f59e0b; font-weight:600');
+                return true;
+            } catch (e) {
+                console.error("Firebase init error", e);
+                showToast("Ошибка подключения к Firebase", "error");
+                return false;
+            }
+        }
+       
+        // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast flex items-center gap-x-3 px-6 py-4 rounded-3xl shadow-2xl text-white font-medium max-w-xs`;
+          
+            if (type === 'success') {
+                toast.classList.add('bg-gradient-to-r', 'from-emerald-500', 'to-amber-500');
+                toast.innerHTML = `<i class="fa-solid fa-check-circle"></i> ${message}`;
+            } else if (type === 'error') {
+                toast.classList.add('bg-gradient-to-r', 'from-red-500', 'to-rose-500');
+                toast.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${message}`;
+            } else {
+                toast.classList.add('bg-slate-800');
+                toast.innerHTML = message;
+            }
+          
+            container.appendChild(toast);
+          
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3200);
+        }
+       
+        function generateUniqueCode() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars[Math.floor(Math.random() * chars.length)];
+            }
+            return `PVZ-${code}`;
+        }
+       
+        function deepCopy(obj) {
+            return JSON.parse(JSON.stringify(obj));
+        }
+       
+        // Запрет копирования текста во время теста
+        function preventCopy() {
+            document.addEventListener('copy', function(e) {
+                if (!['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+                    e.preventDefault();
+                }
+            });
+        }
+       
+        // Обработка Ctrl+B и Ctrl+U в rich-редакторе
+        function handleEditorKeydown(e) {
+            if (e.ctrlKey && (e.key === 'b' || e.key === 'B')) {
+                e.preventDefault();
+                document.execCommand('bold', false, null);
+                return false;
+            }
+            if (e.ctrlKey && (e.key === 'u' || e.key === 'U')) {
+                e.preventDefault();
+                document.execCommand('underline', false, null);
+                return false;
+            }
+        }
+       
+        // ==================== ОТОБРАЖЕНИЕ ТЕСТОВ (USER) ====================
+        function renderTestsGrid() {
+            const container = document.getElementById('tests-grid');
+            container.innerHTML = '';
+            const keys = Object.keys(tests);
+          
+            if (keys.length === 0) {
+                document.getElementById('no-tests').classList.remove('hidden');
+                return;
+            }
+          
+            document.getElementById('no-tests').classList.add('hidden');
+           
+            keys.forEach(key => {
+                const test = tests[key];
+                const questionsCount = test.questions ? test.questions.length : 0;
+              
+                const cardHTML = `
+                <div onclick="openTest('${key}')" class="card-hover bg-white rounded-3xl shadow-sm hover:shadow-md p-6 cursor-pointer border border-slate-100">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h3 class="text-xl font-semibold text-slate-900 mb-2">${test.title}</h3>
+                            <div class="flex items-center text-sm text-slate-500 gap-x-4">
+                                <div><i class="fa-solid fa-question-circle mr-1"></i>${questionsCount} вопросов</div>
+                                <div><i class="fa-solid fa-percent mr-1"></i>${test.passingPercent}%</div>
+                            </div>
+                        </div>
+                        ${test.showExplanations ?
+                        `<span class="text-xs px-3 py-1 bg-emerald-100 text-emerald-700 rounded-2xl font-medium flex items-center"><i class="fa-solid fa-info-circle mr-1"></i>с пояснениями</span>` : ''}
+                    </div>
+                </div>`;
+              
+                container.innerHTML += cardHTML;
+            });
+        }
+       
+        // ==================== ПРОХОЖДЕНИЕ ТЕСТА ====================
+        function openTest(key) {
+            currentTestKey = key;
+            currentTestData = deepCopy(tests[key]);
+          
+            if (!currentTestData || !currentTestData.questions || currentTestData.questions.length === 0) {
+                showToast("Тест пустой", "error");
+                return;
+            }
+          
+            document.getElementById('name-modal').classList.remove('hidden');
+            document.getElementById('user-name-input').focus();
+        }
+       
+        function hideNameModal() {
+            document.getElementById('name-modal').classList.add('hidden');
+        }
+       
+        function startTestAfterName() {
+            const input = document.getElementById('user-name-input').value.trim();
+            if (!input) {
+                showToast("Введите данные", "error");
+                return;
+            }
+          
+            currentUserName = input;
+            hideNameModal();
+          
+            document.getElementById('user-view').classList.add('hidden');
+            document.getElementById('admin-view').classList.add('hidden');
+            document.getElementById('result-screen').classList.add('hidden');
+           
+            const testScreen = document.getElementById('test-screen');
+            testScreen.classList.remove('hidden');
+          
+            userAnswers = new Array(currentTestData.questions.length).fill(null);
+            currentQuestionIndex = 0;
+          
+            document.getElementById('test-title-header').innerHTML = currentTestData.title;
+            loadCurrentQuestion();
+        }
+       
+        function loadCurrentQuestion() {
+            const q = currentTestData.questions[currentQuestionIndex];
+          
+            const sectionEl = document.getElementById('current-section');
+            if (q.section && q.section.trim() !== '') {
+                sectionEl.innerHTML = `<i class="fa-solid fa-layer-group mr-1"></i>Раздел: <span class="font-semibold">${q.section}</span>`;
+                sectionEl.style.display = 'block';
+            } else {
+                sectionEl.style.display = 'none';
+            }
+          
+            document.getElementById('question-number').innerHTML = `
+                Вопрос <span class="font-mono">${currentQuestionIndex + 1}</span>/${currentTestData.questions.length}
+            `;
+          
+            document.getElementById('question-text').innerHTML = q.text || 'Вопрос не указан';
+          
+            const percent = Math.round(((currentQuestionIndex) / currentTestData.questions.length) * 100);
+            document.getElementById('progress-bar').style.width = `${percent}%`;
+            document.getElementById('progress-text').innerHTML = `${currentQuestionIndex + 1} / ${currentTestData.questions.length}`;
+          
+            const container = document.getElementById('options-container');
+            container.innerHTML = '';
+          
+            q.options.forEach((optionText, index) => {
+                const div = document.createElement('div');
+                div.className = `option flex items-center gap-x-4 px-6 py-6 rounded-3xl border-2 border-slate-200 hover:border-amber-200 cursor-pointer text-xl font-medium`;
+                div.innerHTML = `
+                    <input type="radio" name="answer" id="opt-${index}" class="w-6 h-6 accent-amber-500">
+                    <label for="opt-${index}" class="flex-1 cursor-pointer">${optionText}</label>
+                `;
+                div.onclick = () => selectAnswer(index, div);
+                container.appendChild(div);
+            });
+          
+            document.getElementById('explanation-block').classList.add('hidden');
+            document.getElementById('next-btn').classList.add('hidden');
+        }
+       
+        function selectAnswer(selectedIndex, clickedElement) {
+            const allOptions = document.querySelectorAll('#options-container > div');
+           
+            // Блокируем ВСЕ варианты сразу после первого выбора
+            allOptions.forEach((el, i) => {
+                const radio = el.querySelector('input');
+                radio.disabled = true;
+                if (i !== selectedIndex) {
+                    el.style.opacity = '0.65';
+                } else {
+                    el.classList.add('option-selected');
+                }
+                // Полностью убираем обработчик клика — больше нельзя поменять выбор
+                el.onclick = null;
+            });
+          
+            userAnswers[currentQuestionIndex] = selectedIndex;
+          
+            const question = currentTestData.questions[currentQuestionIndex];
+            const isCorrect = selectedIndex === question.correctIndex;
+          
+            const explBlock = document.getElementById('explanation-block');
+            if (currentTestData.showExplanations) {
+                explBlock.classList.remove('hidden');
+              
+                const iconContainer = document.getElementById('explanation-icon');
+                if (isCorrect) {
+                    iconContainer.innerHTML = `<i class="fa-solid fa-circle-check text-3xl text-emerald-500"></i><span class="ml-3 font-semibold text-emerald-600">Правильно!</span>`;
+                    explBlock.style.borderColor = '#10b981';
+                    explBlock.style.backgroundColor = '#ecfdf5';
+                } else {
+                    iconContainer.innerHTML = `<i class="fa-solid fa-circle-xmark text-3xl text-red-500"></i><span class="ml-3 font-semibold text-red-600">Неправильно</span>`;
+                    explBlock.style.borderColor = '#ef4444';
+                    explBlock.style.backgroundColor = '#fef2f2';
+                }
+                
+                let explHTML = question.explanation || 'Пояснение отсутствует.';
+                explHTML = explHTML.replace(/\n/g, '<br>');
+                document.getElementById('explanation-text').innerHTML = explHTML;
+            }
+          
+            const nextBtn = document.getElementById('next-btn');
+            nextBtn.classList.remove('hidden');
+          
+            if (currentQuestionIndex === currentTestData.questions.length - 1) {
+                nextBtn.innerHTML = `Завершить <i class="fa-solid fa-flag-checkered ml-2"></i>`;
+            }
+        }
+       
+        function nextQuestion() {
+            currentQuestionIndex++;
+          
+            if (currentQuestionIndex >= currentTestData.questions.length) {
+                finishTest();
+            } else {
+                loadCurrentQuestion();
+            }
+        }
+       
+        function finishTest() {
+            let correctCount = 0;
+            currentTestData.questions.forEach((q, i) => {
+                if (userAnswers[i] === q.correctIndex) correctCount++;
+            });
+          
+            const percent = Math.round((correctCount / currentTestData.questions.length) * 100);
+            const passed = percent >= currentTestData.passingPercent;
+            const code = passed ? generateUniqueCode() : null;
+          
+            const responsesRef = db.ref('pvzTests/responses');
+            const newResponse = {
+                createdAt: Date.now(),
+                fio: currentUserName,
+                testTitle: currentTestData.title,
+                testId: currentTestKey,
+                percent: percent,
+                code: code,
+                status: passed ? 'ПРОЙДЕН' : 'НЕ ПРОЙДЕН'
+            };
+          
+            responsesRef.push(newResponse).then(() => {
+                console.log('✅ Результат сохранён');
+            });
+          
+            document.getElementById('test-screen').classList.add('hidden');
+            const resultScreen = document.getElementById('result-screen');
+            resultScreen.classList.remove('hidden');
+          
+            const iconEl = document.getElementById('result-icon');
+            if (passed) {
+                iconEl.innerHTML = `<i class="fa-solid fa-trophy text-amber-400"></i>`;
+                document.getElementById('result-title').innerHTML = `Поздравляем!`;
+                document.getElementById('result-subtitle').innerHTML = `Тест пройден`;
+                document.getElementById('success-code-block').classList.remove('hidden');
+                document.getElementById('pvz-code').innerHTML = `
+                    ${code}
+                    <i class="fa-solid fa-copy text-2xl"></i>
+                `;
+            } else {
+                iconEl.innerHTML = `<i class="fa-solid fa-face-frown text-red-400"></i>`;
+                document.getElementById('result-title').innerHTML = `К сожалению…`;
+                document.getElementById('result-subtitle').innerHTML = `Тест не пройден`;
+                document.getElementById('success-code-block').classList.add('hidden');
+            }
+          
+            document.getElementById('result-percent').innerHTML = `${percent}<span class="text-2xl align-top">%</span>`;
+        }
+       
+        function copyCode() {
+            const codeEl = document.getElementById('pvz-code');
+            const code = codeEl.innerText.trim().replace('PVZ-', '').replace(/\s+/g, '');
+            navigator.clipboard.writeText('PVZ-' + code).then(() => {
+                showToast('Код скопирован!');
+            });
+        }
+       
+        function restartTest() {
+            document.getElementById('result-screen').classList.add('hidden');
+            openTest(currentTestKey);
+        }
+       
+        function exitTest() {
+            currentTestKey = null;
+            currentTestData = null;
+            document.getElementById('test-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.add('hidden');
+            showUserView();
+        }
+       
+        // ==================== АДМИНКА ====================
+        function showAdminLoginModal() {
+            if (isAdminLoggedIn) {
+                showAdminView();
+                return;
+            }
+            document.getElementById('admin-modal').classList.remove('hidden');
+            document.getElementById('admin-password').focus();
+        }
+       
+        function hideAdminModal() {
+            document.getElementById('admin-modal').classList.add('hidden');
+            document.getElementById('admin-password').value = '';
+        }
+       
+        function checkAdminPassword() {
+            const entered = document.getElementById('admin-password').value;
+            if (entered === ADMIN_PASSWORD) {
+                isAdminLoggedIn = true;
+                hideAdminModal();
+                showToast('Добро пожаловать!', 'success');
+                showAdminView();
+            } else {
+                showToast('Неверный пароль!', 'error');
+            }
+        }
+       
+        function logoutAdmin() {
+            isAdminLoggedIn = false;
+            document.getElementById('admin-view').classList.add('hidden');
+            showUserView();
+        }
+       
+        function showAdminView() {
+            document.getElementById('user-view').classList.add('hidden');
+            document.getElementById('test-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.add('hidden');
+            const adminView = document.getElementById('admin-view');
+            adminView.classList.remove('hidden');
+            switchAdminTab(0);
+          
+            const responsesRef = db.ref('pvzTests/responses');
+            responsesRef.on('value', (snapshot) => {
+                const raw = snapshot.val() || {};
+                responsesData = Object.keys(raw).map(k => ({ ...raw[k], id: k })).sort((a, b) => b.createdAt - a.createdAt);
+                if (document.getElementById('admin-responses-tab').style.display !== 'none') {
+                    renderResponsesTable();
+                }
+                document.getElementById('responses-badge').textContent = responsesData.length;
+            });
+        }
+       
+        function switchAdminTab(tabIndex) {
+            document.querySelectorAll('.admin-tab').forEach((t, i) => {
+                if (i === tabIndex) {
+                    t.classList.add('active', 'border-amber-500', 'text-amber-600');
+                } else {
+                    t.classList.remove('active', 'border-amber-500', 'text-amber-600');
+                }
+            });
+          
+            document.getElementById('admin-tests-tab').classList.toggle('hidden', tabIndex !== 0);
+            document.getElementById('admin-responses-tab').classList.toggle('hidden', tabIndex !== 1);
+          
+            if (tabIndex === 0) renderAdminTestsList();
+            if (tabIndex === 1) renderResponsesTable();
+        }
+       
+        function renderAdminTestsList() {
+            const container = document.getElementById('admin-tests-list');
+            container.innerHTML = '';
+          
+            Object.keys(tests).forEach(key => {
+                const t = tests[key];
+                const qCount = t.questions ? t.questions.length : 0;
+              
+                const html = `
+                <div class="bg-white border border-slate-100 rounded-3xl p-6 flex items-center justify-between hover:border-amber-200">
+                    <div class="flex-1">
+                        <div class="font-semibold text-lg">${t.title}</div>
+                        <div class="flex items-center gap-x-6 text-sm text-slate-500 mt-1">
+                            <span>${qCount} вопросов</span>
+                            <span>Проходной: ${t.passingPercent}%</span>
+                            ${t.showExplanations ? `<span class="text-emerald-600"><i class="fa-solid fa-info-circle"></i> пояснения</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-x-2">
+                        <button onclick="editTest('${key}')" class="px-6 py-3 text-amber-600 hover:bg-amber-50 rounded-3xl flex items-center gap-x-2">
+                            <i class="fa-solid fa-pen"></i> Редактировать
+                        </button>
+                        <button onclick="deleteTest('${key}')" class="px-6 py-3 text-red-500 hover:bg-red-50 rounded-3xl">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+                container.innerHTML += html;
+            });
+          
+            if (Object.keys(tests).length === 0) {
+                container.innerHTML = `<div class="text-center py-16 text-slate-400">Нет тестов. Создайте первый!</div>`;
+            }
+        }
+       
+        function createNewTest() {
+            editingTestKey = null;
+            editingTestData = {
+                title: "Новый тест",
+                passingPercent: 70,
+                showExplanations: true,
+                questions: []
+            };
+            showEditorModal();
+        }
+       
+        function editTest(key) {
+            editingTestKey = key;
+            editingTestData = deepCopy(tests[key]);
+            showEditorModal();
+        }
+       
+        function deleteTest(key) {
+            if (!confirm('Удалить тест навсегда?')) return;
+            const testRef = db.ref(`pvzTests/tests/${key}`);
+            testRef.remove().then(() => {
+                showToast('Тест удалён');
+            });
+        }
+       
+        function showEditorModal() {
+            document.getElementById('editor-modal').classList.remove('hidden');
+          
+            document.getElementById('test-name-input').value = editingTestData.title || '';
+            document.getElementById('passing-slider').value = editingTestData.passingPercent || 70;
+            document.getElementById('passing-value').innerText = (editingTestData.passingPercent || 70) + '%';
+            document.getElementById('show-explanations-checkbox').checked = !!editingTestData.showExplanations;
+          
+            renderEditorQuestions();
+        }
+       
+        function hideEditorModal() {
+            document.getElementById('editor-modal').classList.add('hidden');
+            editingTestData = null;
+        }
+       
+        // ==================== РЕДАКТОР С RICH TEXT ====================
+        function renderEditorQuestions() {
+            const container = document.getElementById('questions-editor-list');
+            container.innerHTML = '';
+          
+            editingTestData.questions.forEach((q, qIndex) => {
+                let optionsHTML = '';
+              
+                q.options.forEach((optText, optIndex) => {
+                    const isCorrect = optIndex === q.correctIndex;
+                    optionsHTML += `
+                    <div class="flex items-center gap-x-4 mb-3 group">
+                        <input type="radio" name="correct-${qIndex}" ${isCorrect ? 'checked' : ''}
+                               onclick="setCorrectAnswer(${qIndex}, ${optIndex})" class="accent-amber-500">
+                        <input type="text" value="${optText}"
+                               oninput="editingTestData.questions[${qIndex}].options[${optIndex}] = this.value"
+                               class="flex-1 border border-slate-300 focus:border-amber-400 rounded-2xl px-5 py-3 outline-none">
+                        <button onclick="deleteOption(${qIndex}, ${optIndex}); event.stopImmediatePropagation()"
+                                class="text-red-400 hover:text-red-600 px-3">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>`;
+                });
+              
+                const questionHTML = `
+                <div class="editor-question border border-slate-200 rounded-3xl p-6 bg-slate-50">
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="px-4 py-1 bg-white text-xs font-medium rounded-3xl shadow-sm">Вопрос ${qIndex + 1}</span>
+                       
+                        <div class="flex items-center gap-x-1">
+                            <button onclick="moveQuestionUp(${qIndex}); event.stopImmediatePropagation()"
+                                    class="px-3 py-2 text-slate-400 hover:text-slate-600 rounded-2xl hover:bg-white">
+                                ↑
+                            </button>
+                            <button onclick="moveQuestionDown(${qIndex}); event.stopImmediatePropagation()"
+                                    class="px-3 py-2 text-slate-400 hover:text-slate-600 rounded-2xl hover:bg-white">
+                                ↓
+                            </button>
+                            <button onclick="deleteQuestion(${qIndex}); event.stopImmediatePropagation()"
+                                    class="text-red-500 hover:text-red-700 px-3 py-2">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Раздел (необязательно)</label>
+                        <input type="text" value="${q.section || ''}" 
+                               oninput="editingTestData.questions[${qIndex}].section = this.value"
+                               class="w-full border border-slate-300 focus:border-amber-400 rounded-2xl px-5 py-3 outline-none text-sm"
+                               placeholder="Например: Общие знания">
+                    </div>
+                  
+                    <div class="mb-2 text-xs font-medium text-slate-500">Текст вопроса (Ctrl+B — жирный, Ctrl+U — подчеркнутый)</div>
+                    <div contenteditable="true" onkeydown="handleEditorKeydown(event)" 
+                         class="rich-editor" data-field="text">${q.text || ''}</div>
+                  
+                    <div class="mb-4 font-medium text-sm mt-8">Варианты ответа:</div>
+                    <div class="mb-6">${optionsHTML}</div>
+                  
+                    <div class="font-medium text-sm mb-2">Пояснение к вопросу (Ctrl+B — жирный, Ctrl+U — подчеркнутый)</div>
+                    <div contenteditable="true" onkeydown="handleEditorKeydown(event)" 
+                         class="rich-editor" data-field="explanation">${q.explanation || ''}</div>
+                </div>`;
+              
+                container.innerHTML += questionHTML;
+            });
+          
+            if (editingTestData.questions.length === 0) {
+                container.innerHTML = `<div onclick="addNewQuestion()" class="border border-dashed border-slate-300 rounded-3xl py-16 text-center cursor-pointer hover:border-amber-300">
+                    <i class="fa-solid fa-circle-plus text-4xl text-slate-300 mb-4"></i>
+                    <p class="font-medium">Добавьте первый вопрос</p>
+                </div>`;
+            }
+        }
+       
+        function moveQuestionUp(qIndex) {
+            if (qIndex <= 0) return;
+            const questions = editingTestData.questions;
+            [questions[qIndex], questions[qIndex - 1]] = [questions[qIndex - 1], questions[qIndex]];
+            renderEditorQuestions();
+        }
+       
+        function moveQuestionDown(qIndex) {
+            if (qIndex >= editingTestData.questions.length - 1) return;
+            const questions = editingTestData.questions;
+            [questions[qIndex], questions[qIndex + 1]] = [questions[qIndex + 1], questions[qIndex]];
+            renderEditorQuestions();
+        }
+       
+        function setCorrectAnswer(qIndex, optIndex) {
+            editingTestData.questions[qIndex].correctIndex = optIndex;
+            renderEditorQuestions();
+        }
+       
+        function addOptionToQuestion(qIndex) {
+            if (!editingTestData.questions[qIndex].options) {
+                editingTestData.questions[qIndex].options = [];
+            }
+            editingTestData.questions[qIndex].options.push('Новый вариант');
+            renderEditorQuestions();
+        }
+       
+        function deleteOption(qIndex, optIndex) {
+            if (editingTestData.questions[qIndex].options.length <= 1) {
+                showToast('Нельзя удалить последний вариант', 'error');
+                return;
+            }
+            editingTestData.questions[qIndex].options.splice(optIndex, 1);
+            if (editingTestData.questions[qIndex].correctIndex >= editingTestData.questions[qIndex].options.length) {
+                editingTestData.questions[qIndex].correctIndex = 0;
+            }
+            renderEditorQuestions();
+        }
+       
+        function addNewQuestion() {
+            if (!editingTestData.questions) editingTestData.questions = [];
+            editingTestData.questions.push({
+                text: "Новый вопрос",
+                options: ["Вариант 1", "Вариант 2"],
+                correctIndex: 0,
+                explanation: "Пояснение к вопросу",
+                section: ""
+            });
+            renderEditorQuestions();
+        }
+       
+        function deleteQuestion(qIndex) {
+            if (!confirm('Удалить вопрос?')) return;
+            editingTestData.questions.splice(qIndex, 1);
+            renderEditorQuestions();
+        }
+       
+        function saveTestFromEditor() {
+            // Собираем форматированный HTML из contenteditable полей
+            const questionContainers = document.querySelectorAll('#questions-editor-list .editor-question');
+            questionContainers.forEach((container, idx) => {
+                const textDiv = container.querySelector('[data-field="text"]');
+                const explDiv = container.querySelector('[data-field="explanation"]');
+                if (textDiv && editingTestData.questions[idx]) {
+                    editingTestData.questions[idx].text = textDiv.innerHTML.trim();
+                }
+                if (explDiv && editingTestData.questions[idx]) {
+                    editingTestData.questions[idx].explanation = explDiv.innerHTML.trim();
+                }
+            });
+          
+            editingTestData.title = document.getElementById('test-name-input').value.trim() || 'Без названия';
+            editingTestData.passingPercent = parseInt(document.getElementById('passing-slider').value);
+            editingTestData.showExplanations = document.getElementById('show-explanations-checkbox').checked;
+          
+            const testsRef = db.ref('pvzTests/tests');
+          
+            if (editingTestKey) {
+                testsRef.child(editingTestKey).set(editingTestData).then(() => {
+                    showToast('Тест обновлён');
+                    hideEditorModal();
+                });
+            } else {
+                testsRef.push(editingTestData).then(() => {
+                    showToast('Новый тест создан');
+                    hideEditorModal();
+                });
+            }
+        }
+       
+        // ==================== ОТВЕТЫ ====================
+        function renderResponsesTable() {
+            const tbody = document.getElementById('responses-table');
+            tbody.innerHTML = '';
+          
+            if (responsesData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-8 py-12 text-center text-slate-400">Пока нет ответов</td></tr>`;
+                return;
+            }
+          
+            responsesData.forEach(r => {
+                const date = new Date(r.createdAt);
+                const dateStr = `${date.toLocaleDateString('ru-RU')} ${date.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'})}`;
+              
+                const statusHTML = r.status === 'ПРОЙДЕН'
+                    ? `<span class="px-5 py-1 text-xs font-semibold bg-emerald-100 text-emerald-700 rounded-3xl">ПРОЙДЕН</span>`
+                    : `<span class="px-5 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded-3xl">НЕ ПРОЙДЕН</span>`;
+              
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-50';
+                row.innerHTML = `
+                    <td class="px-6 py-5 font-medium">${dateStr}</td>
+                    <td class="px-6 py-5">${r.fio}</td>
+                    <td class="px-6 py-5">${r.testTitle}</td>
+                    <td class="px-6 py-5 text-center font-semibold">${r.percent}%</td>
+                    <td class="px-6 py-5 text-center font-mono text-lg">${r.code || '—'}</td>
+                    <td class="px-6 py-5 text-center">${statusHTML}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+       
+        function refreshResponses() {
+            showToast('Данные обновлены');
+        }
+       
+        // ==================== ЭКСПОРТ / ИМПОРТ ====================
+        function exportTests() {
+            const dataToExport = { tests: tests };
+            const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pvz-tests-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Экспорт выполнен');
+        }
+       
+        function importTests(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+          
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    const imported = JSON.parse(ev.target.result);
+                    if (imported.tests) {
+                        db.ref('pvzTests/tests').set(imported.tests).then(() => {
+                            showToast('Тесты импортированы');
+                            e.target.value = '';
+                        });
+                    } else {
+                        showToast('Неверный формат JSON', 'error');
+                    }
+                } catch (err) {
+                    showToast('Ошибка чтения файла', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+       
+        // ==================== ПРОВЕРКА FIREBASE ====================
+        function checkFirebaseConnection() {
+            const statusEl = document.getElementById('firebase-status');
+            statusEl.innerHTML = `<i class="fa-solid fa-spinner animate-spin mr-2"></i>Проверка...`;
+          
+            const testsRef = db.ref('pvzTests/tests');
+            testsRef.once('value').then(() => {
+                statusEl.innerHTML = `<div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-2"></div><span class="hidden sm:inline">Firebase подключён</span>`;
+                showToast('Соединение в порядке');
+            }).catch(() => {
+                statusEl.innerHTML = `❌ Ошибка`;
+                showToast('Проблема с Firebase', 'error');
+            });
+        }
+       
+        // ==================== ПЕРЕКЛЮЧЕНИЕ ВИДОВ ====================
+        function showUserView() {
+            document.getElementById('admin-view').classList.add('hidden');
+            document.getElementById('test-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.add('hidden');
+            const userView = document.getElementById('user-view');
+            userView.classList.remove('hidden');
+            renderTestsGrid();
+        }
+       
+        // ==================== ЗАПУСК ====================
+        function launchApp() {
+            initializeFirebase();
+            renderTestsGrid();
+            preventCopy();
+            console.log('%c🚀 ПВЗ Тесты — полностью готовый минималистичный портал с rich-текстом', 'background:#f59e0b;color:#000;font-size:13px;font-weight:700;padding:2px 6px;border-radius:9999px');
+        }
+       
+        window.onload = launchApp;
+    </script>
+</body>
+</html>

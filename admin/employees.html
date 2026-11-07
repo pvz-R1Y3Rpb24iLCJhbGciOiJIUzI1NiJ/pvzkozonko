@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Реестр сотрудников</title>
+
+    <!-- Handsontable CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@latest/dist/handsontable.full.min.css">
+
+    <style>
+        body {
+            font-family: sans-serif;
+        }
+
+        #employees-hot-container,
+        #hidden-employees-hot-container {
+            width: 100%;
+            height: 600px;
+            overflow: auto;
+        }
+
+        .htCurrent {
+            background-color: lightblue !important;
+        }
+
+        .changed {
+            background-color: yellow !important;
+            transition: background-color 2s ease-out;
+        }
+
+        #employees-status {
+            margin-top: 10px;
+            color: green;
+            font-weight: bold;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .delete-icon {
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .page-intro {
+            max-width: 720px;
+            color: #444;
+            line-height: 1.5;
+        }
+
+        details.hidden-section {
+            margin-top: 10px;
+        }
+
+        details.hidden-section > summary {
+            cursor: pointer;
+            font-size: 1.17em;
+            font-weight: bold;
+            padding: 6px 0;
+        }
+
+        /* --- Мастер добавления сотрудника --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.hidden {
+            display: none;
+        }
+
+        .wizard-box {
+            background: #fff;
+            border-radius: 10px;
+            padding: 28px 32px;
+            width: 420px;
+            max-width: 90vw;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+            font-family: sans-serif;
+        }
+
+        .wizard-progress {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+
+        .wizard-progress-bar {
+            height: 4px;
+            background: #eee;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 18px;
+        }
+
+        .wizard-progress-bar-fill {
+            height: 100%;
+            background: #007bff;
+            transition: width 0.2s ease;
+        }
+
+        .wizard-label {
+            font-size: 17px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #222;
+        }
+
+        .wizard-hint {
+            font-size: 13px;
+            color: #777;
+            margin-bottom: 14px;
+        }
+
+        .wizard-input {
+            width: 100%;
+            padding: 10px;
+            font-size: 15px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            margin-bottom: 18px;
+        }
+
+        .wizard-input[type="color"] {
+            height: 44px;
+            padding: 4px;
+        }
+
+        .wizard-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wizard-actions .left,
+        .wizard-actions .right {
+            display: flex;
+            gap: 8px;
+        }
+
+        .wizard-actions button {
+            margin: 0;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        .wizard-btn-skip {
+            background: #f1f1f1 !important;
+            color: #555 !important;
+        }
+
+        .wizard-btn-skip:hover {
+            background: #e2e2e2 !important;
+        }
+
+        .wizard-btn-secondary {
+            background: transparent !important;
+            color: #007bff !important;
+        }
+
+        .wizard-btn-secondary:hover {
+            background: #f0f7ff !important;
+        }
+
+        .wizard-close {
+            position: absolute;
+            top: 10px;
+            right: 14px;
+            background: none !important;
+            color: #999 !important;
+            font-size: 20px;
+            padding: 2px 6px !important;
+        }
+
+        .wizard-summary-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .wizard-summary-row span:first-child {
+            color: #888;
+        }
+
+        .wizard-summary-empty {
+            color: #bbb;
+            font-style: italic;
+        }
+    </style>
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="../core/kz.js" data-role="admin" data-page="employees"></script>
+</head>
+<body>
+    <h1><span>👷</span> Реестр сотрудников</h1>
+
+    <button id="back-button" style="position: absolute; top: 10px; right: 10px;">
+        Назад на главную
+    </button>
+
+    <p class="page-intro">
+        В реестре сотрудников хранится информация обо всех сотрудниках, работающих в ПВЗ.<br>
+        Чтобы добавить нового сотрудника, нажмите «Добавить сотрудника» — вопросы можно пропускать, если данных пока нет.<br>
+        Для редактирования существующих значений в таблице наведите курсор на поле и введите данные — они сохранятся автоматически.<br>
+        Внимательно относитесь к редактированию реестра — одна ошибка может повлечь за собой снежный ком из последствий.
+    </p>
+
+    <br><br>
+
+    <button id="add-employee">+ Добавить сотрудника</button>
+
+    <div id="employees-hot-container"></div>
+
+    <details class="hidden-section">
+        <summary>Скрытые сотрудники</summary>
+        <div id="hidden-employees-hot-container"></div>
+    </details>
+
+    <button id="employees-undo">&#8592;</button>
+    <button id="employees-redo">&#8594;</button>
+
+    <div id="employees-status"></div>
+
+    <!-- Мастер добавления сотрудника -->
+    <div id="wizard-overlay" class="modal-overlay hidden">
+        <div class="wizard-box" style="position: relative;">
+            <button class="wizard-close" id="wizard-close" title="Закрыть">&times;</button>
+            <div class="wizard-progress" id="wizard-progress"></div>
+            <div class="wizard-progress-bar"><div class="wizard-progress-bar-fill" id="wizard-progress-fill"></div></div>
+            <div id="wizard-body"></div>
+        </div>
+    </div>
+
+    <!-- Handsontable JS -->
+    <script src="https://cdn.jsdelivr.net/npm/handsontable@latest/dist/handsontable.full.min.js"></script>
+
+    <script type="module">
+        const { initializeApp } = window.KZM;
+        const { getDatabase, ref, get, set } = window.KZM;
+
+        // Firebase Config and Initialization
+        const firebaseConfig = {
+            apiKey: "AIzaSyDgpd51erVNy_PwSbYTXPISALNMmYtgTN8",
+            authDomain: "kozonko-9bff6.firebaseapp.com",
+            databaseURL: "https://kozonko-9bff6-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "kozonko-9bff6",
+            storageBucket: "kozonko-9bff6.appspot.com",
+            messagingSenderId: "128059740430",
+            appId: "1:128059740430:web:5c923c4e9d912be196c75f"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        let activeHot;
+        let hiddenHot;
+        let activeData = [];
+        let hiddenData = [];
+        let lastChangedCell = null;
+        let currentHot = null;
+        let saveTimer = null;
+        let pendingSavePromise = null; // промис текущей/последней записи в Firebase
+        let hasUnsavedChanges = false; // true, пока изменения не подтверждены записью в БД
+
+        const MONTHS_RU = [
+            "января", "февраля", "марта", "апреля", "мая", "июня",
+            "июля", "августа", "сентября", "октября", "ноября", "декабря"
+        ];
+
+        function getElement(id) {
+            const el = document.getElementById(id);
+            if (!el) {
+                console.error(`Элемент с ID '${id}' не найден!`);
+                return null;
+            }
+            return el;
+        }
+
+        function waitForContainer(id) {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 50;
+
+                const checkContainer = () => {
+                    const container = getElement(id);
+                    if (container) {
+                        resolve(container);
+                    } else if (attempts < maxAttempts) {
+                        attempts++;
+                        setTimeout(checkContainer, 100);
+                    } else {
+                        reject(new Error(`Контейнер ${id} не найден после 5 секунд`));
+                    }
+                };
+
+                checkContainer();
+            });
+        }
+
+        function normalizeBirthdayInput(value) {
+            if (value === null || value === undefined) return "";
+
+            const raw = String(value).trim();
+            if (!raw) return "";
+
+            // Поддерживаем:
+            // 23.10
+            // 23-10
+            // 23/10
+            // 23.10.2000 -> сохраняем как 23.10
+            const match = raw.match(/^(\d{1,2})[.\-\/](\d{1,2})(?:[.\-\/]\d{2,4})?$/);
+            if (!match) return raw;
+
+            let day = Number(match[1]);
+            let month = Number(match[2]);
+
+            if (!Number.isFinite(day) || !Number.isFinite(month)) return raw;
+            if (day < 1 || day > 31 || month < 1 || month > 12) return raw;
+
+            return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}`;
+        }
+
+        function birthdayToDisplay(value) {
+            if (value === null || value === undefined) return "";
+
+            const raw = String(value).trim();
+            if (!raw) return "";
+
+            const normalized = normalizeBirthdayInput(raw);
+            const match = normalized.match(/^(\d{2})\.(\d{2})$/);
+
+            if (!match) {
+                return raw; // если формат старый/нестандартный, показываем как есть
+            }
+
+            const day = Number(match[1]);
+            const month = Number(match[2]);
+
+            if (!day || !month || !MONTHS_RU[month - 1]) {
+                return raw;
+            }
+
+            return `${day} ${MONTHS_RU[month - 1]}`;
+        }
+
+        // Custom renderer for birthday column
+        function birthdayRenderer(instance, td, row, col, prop, value) {
+            td.textContent = birthdayToDisplay(value);
+            td.style.color = "";
+            td.style.backgroundColor = "";
+            td.title = normalizeBirthdayInput(value) || "";
+            return td;
+        }
+
+        // Custom validator: accepts only dd.mm
+        function birthdayValidator(value, callback) {
+            if (value === null || value === undefined || String(value).trim() === "") {
+                callback(true);
+                return;
+            }
+
+            const normalized = normalizeBirthdayInput(value);
+            const isValid = /^\d{2}\.\d{2}$/.test(normalized);
+            callback(isValid);
+        }
+
+        // Custom Color Editor
+        class ColorEditor extends Handsontable.editors.TextEditor {
+            prepare(row, col, prop, td, originalValue, cellProperties) {
+                super.prepare(row, col, prop, td, originalValue, cellProperties);
+
+                if (this.TEXTAREA_PARENT && this.TEXTAREA) {
+                    this.TEXTAREA_PARENT.removeChild(this.TEXTAREA);
+                }
+
+                this.TEXTAREA = document.createElement('input');
+                this.TEXTAREA.setAttribute('type', 'color');
+                this.TEXTAREA.value = originalValue || '#000000';
+                this.TEXTAREA_PARENT.appendChild(this.TEXTAREA);
+            }
+
+            open() {
+                try {
+                    super.open();
+                } catch (e) {
+                    console.warn('ColorEditor open() suppressed error:', e);
+                }
+                this.focus();
+            }
+
+            // Базовый TextEditor.focus() дергает setSelectionRange(),
+            // а <input type="color"> такой метод не поддерживает —
+            // из-за этого падало необработанное исключение прямо в
+            // середине открытия редактора, и правка (в т.ч. соседних
+            // ячеек вроде имени) не долетала до afterChange/сохранения.
+            focus() {
+                this.TEXTAREA.focus();
+            }
+
+            getValue() {
+                return this.TEXTAREA.value;
+            }
+
+            // По той же причине родительский close() тоже может трогать
+            // selection/scroll API текстового поля, которых нет у
+            // input[type=color] — оборачиваем в try/catch, чтобы такое
+            // исключение (если возникнет) не срывало commit значения.
+            close() {
+                try {
+                    super.close();
+                } catch (e) {
+                    console.warn('ColorEditor close() suppressed error:', e);
+                }
+            }
+        }
+
+        // Register custom cell types
+        Handsontable.cellTypes.registerCellType('color', {
+            editor: ColorEditor,
+            renderer: function(instance, td, row, col, prop, value) {
+                Handsontable.renderers.TextRenderer.apply(this, arguments);
+                if (value) {
+                    td.style.backgroundColor = value;
+                }
+            }
+        });
+
+        Handsontable.cellTypes.registerCellType('birthday', {
+            editor: Handsontable.editors.TextEditor,
+            renderer: birthdayRenderer,
+            validator: birthdayValidator
+        });
+
+        function doSaveNow() {
+            const allEmployees = [
+                ...(activeHot ? activeHot.getSourceData() : []),
+                ...(hiddenHot ? hiddenHot.getSourceData() : [])
+            ];
+
+            hasUnsavedChanges = true;
+
+            pendingSavePromise = set(ref(db, 'appData/employees'), allEmployees)
+                .then(() => {
+                    console.log('All data saved to DB');
+                    hasUnsavedChanges = false;
+                })
+                .catch(err => {
+                    console.error('Ошибка сохранения данных:', err);
+                    // Ошибка записи не должна быть видна только в консоли —
+                    // иначе пользователь думает, что всё сохранилось, а после
+                    // перезагрузки видит откат к старым данным.
+                    const statusEl = getElement('employees-status');
+                    if (statusEl) {
+                        statusEl.textContent = 'Ошибка сохранения! Проверьте соединение и повторите правку.';
+                        statusEl.style.color = 'red';
+                    }
+                    throw err;
+                });
+
+            return pendingSavePromise;
+        }
+
+        // Дебаунс: группирует быстрые последовательные правки в одну запись,
+        // но НИЧЕГО не пишет, пока не пройдёт 300мс тишины.
+        function saveAllDataToDB() {
+            if (saveTimer) clearTimeout(saveTimer);
+            hasUnsavedChanges = true;
+            saveTimer = setTimeout(() => {
+                saveTimer = null;
+                doSaveNow();
+            }, 300);
+        }
+
+        // Принудительно сбрасывает отложенное сохранение и дожидается
+        // завершения текущей записи в Firebase. Вызывается перед любым
+        // переходом со страницы, чтобы правки не терялись из-за гонки
+        // между setTimeout(300мс) и немедленной навигацией.
+        async function flushPendingSave() {
+            if (saveTimer) {
+                clearTimeout(saveTimer);
+                saveTimer = null;
+                doSaveNow();
+            }
+            if (pendingSavePromise) {
+                try {
+                    await pendingSavePromise;
+                } catch (e) {
+                    // ошибка уже показана пользователю в doSaveNow
+                }
+            }
+        }
+
+        function insertNewEmployeeRow(answers) {
+            const newId = Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+
+            const newEmployee = {
+                id: newId,
+                name: answers.name || '',
+                fullName: answers.fullName || '',
+                birthday: normalizeBirthdayInput(answers.birthday || ''),
+                rate: answers.rate !== '' && answers.rate !== undefined ? Number(answers.rate) : 0,
+                paymentDetails: answers.paymentDetails || '',
+                tgChatId: answers.tgChatId || '',
+                tgUsername: answers.tgUsername || '',
+                color: answers.color || '',
+                hidden: false,
+                staffPin: answers.staffPin || '',
+                avatarUrl: answers.avatarUrl || ''
+            };
+
+            const rowIndex = activeHot.countRows();
+
+            if (rowIndex === 0) {
+                activeHot.alter('insert_row_above', 0);
+            } else {
+                activeHot.alter('insert_row_below', rowIndex - 1);
+            }
+
+            Object.keys(newEmployee).forEach(key => {
+                activeHot.setDataAtRowProp(rowIndex, key, newEmployee[key]);
+            });
+
+            activeHot.render();
+            saveAllDataToDB();
+
+            const statusEl = getElement('employees-status');
+            if (statusEl) {
+                statusEl.style.color = 'green';
+                statusEl.textContent = `Новый сотрудник добавлен${newEmployee.name ? ': ' + newEmployee.name : ''}`;
+            }
+        }
+
+        // --- Мастер добавления сотрудника: по одному полю за раз, с пропуском ---
+        const WIZARD_FIELDS = [
+            { key: 'name', label: 'Имя сотрудника', hint: 'Короткое имя для отображения в таблицах и боте.', type: 'text', placeholder: 'Например: Иван' },
+            { key: 'fullName', label: 'ФИО полностью', hint: 'Пригодится для документов и договоров.', type: 'text', placeholder: 'Иванов Иван Иванович' },
+            { key: 'birthday', label: 'Дата рождения', hint: 'Формат ДД.ММ, например 23.10 — без года.', type: 'text', placeholder: '23.10' },
+            { key: 'rate', label: 'Ставка', hint: 'Ставка оплаты труда. Можно указать позже.', type: 'number', placeholder: '0' },
+            { key: 'paymentDetails', label: 'Реквизиты для выплат', hint: 'Карта, счёт или другие платёжные данные.', type: 'text', placeholder: '' },
+            { key: 'tgChatId', label: 'Telegram Chat ID', hint: 'Нужен для уведомлений через бота.', type: 'text', placeholder: '' },
+            { key: 'tgUsername', label: 'Telegram Username', hint: 'Например: @username', type: 'text', placeholder: '@username' },
+            { key: 'color', label: 'Цвет сотрудника', hint: 'Используется для подсветки в графиках и таблицах.', type: 'color', placeholder: '' },
+            { key: 'staffPin', label: 'Пароль личного кабинета', hint: 'Для входа сотрудника в личный кабинет.', type: 'text', placeholder: '' },
+            { key: 'avatarUrl', label: 'Аватарка (URL или base64)', hint: 'Ссылка на изображение для профиля.', type: 'text', placeholder: 'https://...' }
+        ];
+
+        let wizardStep = 0;
+        let wizardAnswers = {};
+
+        function openEmployeeWizard() {
+            wizardStep = 0;
+            wizardAnswers = {};
+            getElement('wizard-overlay').classList.remove('hidden');
+            renderWizardStep();
+        }
+
+        function closeEmployeeWizard() {
+            getElement('wizard-overlay').classList.add('hidden');
+        }
+
+        function renderWizardStep() {
+            const body = getElement('wizard-body');
+            const progress = getElement('wizard-progress');
+            const fill = getElement('wizard-progress-fill');
+            if (!body) return;
+
+            const isSummary = wizardStep >= WIZARD_FIELDS.length;
+            const totalSteps = WIZARD_FIELDS.length + 1;
+
+            progress.textContent = isSummary
+                ? `Проверка перед сохранением`
+                : `Шаг ${wizardStep + 1} из ${WIZARD_FIELDS.length}`;
+            fill.style.width = `${((wizardStep + 1) / totalSteps) * 100}%`;
+
+            if (isSummary) {
+                const rows = WIZARD_FIELDS.map(f => {
+                    const val = wizardAnswers[f.key];
+                    const display = val ? (f.type === 'color'
+                        ? `<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${val};vertical-align:middle;margin-right:6px;"></span>${val}`
+                        : val)
+                        : '<span class="wizard-summary-empty">пропущено</span>';
+                    return `<div class="wizard-summary-row"><span>${f.label}</span><span>${display}</span></div>`;
+                }).join('');
+
+                body.innerHTML = `
+                    <div class="wizard-label">Всё верно?</div>
+                    <div class="wizard-hint">Проверьте данные — их можно будет изменить позже прямо в таблице.</div>
+                    <div style="max-height: 280px; overflow-y: auto; margin-bottom: 18px;">${rows}</div>
+                    <div class="wizard-actions">
+                        <div class="left">
+                            <button class="wizard-btn-secondary" id="wizard-back">&larr; Назад</button>
+                        </div>
+                        <div class="right">
+                            <button id="wizard-save">Сохранить сотрудника</button>
+                        </div>
+                    </div>
+                `;
+
+                getElement('wizard-back').addEventListener('click', () => {
+                    wizardStep--;
+                    renderWizardStep();
+                });
+                getElement('wizard-save').addEventListener('click', () => {
+                    insertNewEmployeeRow(wizardAnswers);
+                    closeEmployeeWizard();
+                });
+                return;
+            }
+
+            const field = WIZARD_FIELDS[wizardStep];
+            const currentValue = wizardAnswers[field.key] || '';
+
+            body.innerHTML = `
+                <div class="wizard-label">${field.label}</div>
+                <div class="wizard-hint">${field.hint}</div>
+                <input class="wizard-input" id="wizard-input" type="${field.type === 'color' ? 'color' : field.type}"
+                    placeholder="${field.placeholder || ''}" value="${field.type === 'color' ? (currentValue || '#4285f4') : currentValue}">
+                <div class="wizard-actions">
+                    <div class="left">
+                        ${wizardStep > 0 ? '<button class="wizard-btn-secondary" id="wizard-back">&larr; Назад</button>' : ''}
+                    </div>
+                    <div class="right">
+                        <button class="wizard-btn-skip" id="wizard-skip">Пропустить</button>
+                        <button id="wizard-next">Далее &rarr;</button>
+                    </div>
+                </div>
+            `;
+
+            const input = getElement('wizard-input');
+            input.focus();
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    getElement('wizard-next').click();
+                }
+            });
+
+            if (wizardStep > 0) {
+                getElement('wizard-back').addEventListener('click', () => {
+                    wizardStep--;
+                    renderWizardStep();
+                });
+            }
+
+            getElement('wizard-skip').addEventListener('click', () => {
+                delete wizardAnswers[field.key];
+                wizardStep++;
+                renderWizardStep();
+            });
+
+            getElement('wizard-next').addEventListener('click', () => {
+                const val = input.value.trim();
+                if (val) {
+                    wizardAnswers[field.key] = val;
+                } else {
+                    delete wizardAnswers[field.key];
+                }
+                wizardStep++;
+                renderWizardStep();
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const statusEl = getElement('employees-status');
+            if (!statusEl) return;
+
+            try {
+                const activeContainer = await waitForContainer('employees-hot-container');
+                const hiddenContainer = await waitForContainer('hidden-employees-hot-container');
+
+                await loadGlobalData();
+
+                activeHot = setupHot(activeContainer, activeData, () => hiddenHot, true);
+                hiddenHot = setupHot(hiddenContainer, hiddenData, () => activeHot, false);
+
+                currentHot = activeHot;
+                setupButtons();
+                setupNavigationGuards();
+
+                const wizardCloseBtn = getElement('wizard-close');
+                const wizardOverlay = getElement('wizard-overlay');
+                if (wizardCloseBtn) wizardCloseBtn.addEventListener('click', closeEmployeeWizard);
+                if (wizardOverlay) {
+                    wizardOverlay.addEventListener('click', (e) => {
+                        if (e.target === wizardOverlay) closeEmployeeWizard();
+                    });
+                }
+            } catch (err) {
+                console.error('Ошибка инициализации:', err);
+            }
+        });
+
+        async function loadGlobalData() {
+            // ОПТИМИЗАЦИЯ: читаем только /appData/employees вместо всего appData (9.7 MB)
+            const empRef = ref(db, 'appData/employees');
+
+            try {
+                const snapshot = await get(empRef);
+                const empData = snapshot.val();
+
+                if (!empData) {
+                    console.error('Данные сотрудников не найдены в Firebase');
+                    return;
+                }
+
+                const employees = Array.isArray(empData) ? empData : Object.values(empData || []);
+
+                const defaults = {
+                    id: '',
+                    name: '',
+                    fullName: '',
+                    birthday: '',
+                    rate: 0,
+                    paymentDetails: '',
+                    tgChatId: '',
+                    tgUsername: '',
+                    color: '',
+                    hidden: false,
+                    staffPin: '',
+                    avatarUrl: ''
+                };
+
+                const allData = employees.map(emp => ({
+                    ...defaults,
+                    ...emp,
+                    birthday: normalizeBirthdayInput(emp.birthday)
+                }));
+
+                activeData = allData.filter(emp => !emp.hidden);
+                hiddenData = allData.filter(emp => emp.hidden);
+
+                console.log('Data loaded:', activeData.length, 'active employees,', hiddenData.length, 'hidden employees');
+            } catch (err) {
+                console.error('Ошибка загрузки данных:', err);
+            }
+        }
+
+        function setupHot(container, data, getOtherHot, isActive) {
+            if (!container) {
+                console.error('Не удалось инициализировать Handsontable');
+                return null;
+            }
+
+            const colHeaders = [
+                'ID', 'Имя', 'ФИО', 'Дата рождения', 'Ставка', 'Реквизиты', 'TG Chat ID', 'TG Username',
+                'Цвет', 'Скрыт', '🔐 Пароль ЛК', '🖼 Аватарка (URL/base64)', 'Удалить'
+            ];
+
+            const columns = [
+                { data: 'id', readOnly: true },
+                { data: 'name' },
+                { data: 'fullName' },
+                { data: 'birthday', type: 'birthday' },
+                { data: 'rate', type: 'numeric' },
+                { data: 'paymentDetails' },
+                { data: 'tgChatId' },
+                { data: 'tgUsername' },
+                { data: 'color', type: 'color' },
+                { data: 'hidden', type: 'checkbox' },
+                { data: 'staffPin', type: 'text' },
+                { data: 'avatarUrl', type: 'text' },
+                {
+                    renderer: function(instance, td) {
+                        td.innerHTML = '<span class="delete-icon" style="cursor: pointer;">🗑</span>';
+                        td.style.textAlign = 'center';
+                        return td;
+                    },
+                    readOnly: true
+                }
+            ];
+
+            const hot = new Handsontable(container, {
+                data,
+                rowHeaders: true,
+                colHeaders,
+                columns,
+                manualRowMove: true,
+                manualColumnMove: true,
+                stretchH: 'all',
+                height: 'auto',
+                undoRedo: true,
+                licenseKey: 'non-commercial-and-evaluation'
+            });
+
+            hot.addHook('afterChange', (changes, source) => handleChange(hot, getOtherHot(), changes, source, isActive));
+            hot.addHook('afterSelection', () => {
+                currentHot = hot;
+            });
+
+            container.addEventListener('click', function(event) {
+                if (event.target.classList.contains('delete-icon')) {
+                    const td = event.target.closest('td');
+                    const coords = hot.getCoords(td);
+                    const row = coords.row;
+                    const emp = hot.getSourceDataAtRow(row);
+
+                    if (confirm('Вы действительно хотите удалить сотрудника?')) {
+                        hot.alter('remove_row', row);
+                        hot.render();
+                        saveAllDataToDB();
+
+                        const statusEl = getElement('employees-status');
+                        if (statusEl) statusEl.textContent = 'Сотрудник удален';
+                    }
+                }
+            });
+
+            console.log(`Handsontable for ${isActive ? 'active' : 'hidden'} initialized`);
+            return hot;
+        }
+
+        function handleChange(hotInstance, otherInstance, changes, source, isActive) {
+            const statusEl = getElement('employees-status');
+
+            if (!changes || source === 'loadData' || source === 'birthday-normalize') return;
+
+            let lastStatus = '';
+            const moveRows = [];
+
+            changes.forEach(([row, prop, oldVal, newVal]) => {
+                if (prop === 'birthday') {
+                    const normalized = normalizeBirthdayInput(newVal);
+                    if (normalized !== newVal) {
+                        hotInstance.setDataAtRowProp(row, 'birthday', normalized, 'birthday-normalize');
+                    }
+                    const emp = hotInstance.getSourceDataAtRow(row);
+                    lastStatus = `Обновлено: ${emp.name || ''} — дата рождения`;
+                    lastChangedCell = { hot: hotInstance, row, col: hotInstance.propToCol(prop) };
+                    highlightLastChanged();
+                    return;
+                }
+
+                if (prop === 'hidden') {
+                    const emp = hotInstance.getSourceDataAtRow(row);
+                    moveRows.push({ row, emp, newVal });
+                } else {
+                    const emp = hotInstance.getSourceDataAtRow(row);
+                    lastStatus = `Обновлено: ${emp.name || ''} — ${prop} -> ${newVal}`;
+                    lastChangedCell = { hot: hotInstance, row, col: hotInstance.propToCol(prop) };
+                    highlightLastChanged();
+                }
+            });
+
+            if (moveRows.length > 0) {
+                const otherHot = otherInstance;
+                if (!otherHot) {
+                    console.warn('Other instance not ready yet, skipping move');
+                    return;
+                }
+
+                moveRows.sort((a, b) => b.row - a.row);
+
+                moveRows.forEach(({ row, emp, newVal }) => {
+                    const shouldMove = (isActive && newVal === true) || (!isActive && newVal === false);
+
+                    if (shouldMove) {
+                        const rowData = { ...hotInstance.getSourceDataAtRow(row) };
+                        rowData.hidden = newVal;
+
+                        hotInstance.alter('remove_row', row);
+                        hotInstance.render();
+
+                        const targetRow = otherHot.countRows();
+
+                        otherHot.batch(() => {
+                            otherHot.alter('insert_row_above', targetRow);
+                            Object.keys(rowData).forEach(key => {
+                                otherHot.setDataAtRowProp(targetRow, key, rowData[key]);
+                            });
+                        });
+
+                        otherHot.render();
+
+                        lastStatus = `Сотрудник ${emp.name || ''} перемещен в ${isActive ? 'скрытые' : 'активные'}`;
+                        lastChangedCell = {
+                            hot: otherHot,
+                            row: targetRow,
+                            col: otherHot.propToCol('hidden')
+                        };
+                        highlightLastChanged();
+                    }
+                });
+            }
+
+            if (statusEl && lastStatus) {
+                statusEl.textContent = lastStatus;
+            }
+
+            saveAllDataToDB();
+        }
+
+        function highlightLastChanged() {
+            if (lastChangedCell && lastChangedCell.hot) {
+                lastChangedCell.hot.selectCell(lastChangedCell.row, lastChangedCell.col);
+                const cell = lastChangedCell.hot.getCell(lastChangedCell.row, lastChangedCell.col);
+
+                if (cell) {
+                    cell.classList.add('changed');
+                    setTimeout(() => {
+                        cell.classList.remove('changed');
+                    }, 2000);
+                }
+            }
+        }
+
+        function setupNavigationGuards() {
+            const backBtn = getElement('back-button');
+            if (backBtn) {
+                backBtn.addEventListener('click', async () => {
+                    const statusEl = getElement('employees-status');
+                    backBtn.disabled = true;
+                    const originalText = backBtn.textContent;
+                    backBtn.textContent = 'Сохранение...';
+                    try {
+                        await flushPendingSave();
+                    } finally {
+                        window.location.href = './schedule.html';
+                    }
+                });
+            }
+
+            // Если пользователь закрывает вкладку/обновляет страницу, пока
+            // правка ещё не записалась в Firebase — предупреждаем его,
+            // вместо того чтобы молча терять данные.
+            window.addEventListener('beforeunload', (event) => {
+                if (hasUnsavedChanges) {
+                    event.preventDefault();
+                    event.returnValue = '';
+                    return '';
+                }
+            });
+        }
+
+        function setupButtons() {
+            const undoBtn = getElement('employees-undo');
+            const redoBtn = getElement('employees-redo');
+            const addBtn = getElement('add-employee');
+
+            if (!undoBtn || !redoBtn || !addBtn) return;
+
+            function updateButtonStates() {
+                const undoRedo = currentHot ? currentHot.getPlugin('undoRedo') : null;
+
+                if (undoRedo) {
+                    undoBtn.disabled = !undoRedo.isUndoAvailable();
+                    redoBtn.disabled = !undoRedo.isRedoAvailable();
+                } else {
+                    undoBtn.disabled = true;
+                    redoBtn.disabled = true;
+                }
+            }
+
+            undoBtn.addEventListener('click', () => {
+                if (currentHot) {
+                    currentHot.undo();
+                    const statusEl = getElement('employees-status');
+                    if (statusEl) statusEl.textContent = 'Undo применено';
+                    updateButtonStates();
+                }
+            });
+
+            redoBtn.addEventListener('click', () => {
+                if (currentHot) {
+                    currentHot.redo();
+                    const statusEl = getElement('employees-status');
+                    if (statusEl) statusEl.textContent = 'Redo применено';
+                    updateButtonStates();
+                }
+            });
+
+            addBtn.addEventListener('click', () => {
+                openEmployeeWizard();
+            });
+
+            updateButtonStates();
+
+            [activeHot, hiddenHot].forEach(hot => {
+                if (hot) {
+                    hot.addHook('afterUndo', () => {
+                        saveAllDataToDB();
+                        updateButtonStates();
+                    });
+
+                    hot.addHook('afterRedo', () => {
+                        saveAllDataToDB();
+                        updateButtonStates();
+                    });
+
+                    hot.addHook('afterRowMove', () => {
+                        saveAllDataToDB();
+                    });
+
+                    hot.addHook('afterColumnMove', () => {
+                        saveAllDataToDB();
+                    });
+                }
+            });
+        }
+    </script>
+</body>
+</html>

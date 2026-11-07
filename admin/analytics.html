@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналитика</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --blue: #2563EB; --blue-light: #EFF6FF;
+            --text: #0F172A; --text-muted: #64748B; --border: #E2E8F0;
+            --bg: #F8FAFC; --white: #FFFFFF;
+            --radius: 10px;
+        }
+        body { font-family: 'Manrope', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
+        .page-header { background: var(--white); border-bottom: 1.5px solid var(--border); padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
+        .logo-icon { width: 32px; height: 32px; background: var(--blue); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .logo-icon svg { fill: white; }
+        h1 { font-size: 18px; font-weight: 800; color: var(--text); margin: 0; text-align: left; }
+        .page-body { padding: 24px 32px; }
+        .tabs { display: flex; justify-content: flex-start; margin-bottom: 20px; gap: 4px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 6px; width: fit-content; }
+        .tab-button { background: transparent; border: none; color: var(--text-muted); padding: 8px 20px; margin: 0; cursor: pointer; border-radius: 7px; font-size: 13px; font-weight: 700; font-family: 'Manrope', sans-serif; transition: all 0.15s; }
+        .tab-button.active { background: var(--blue); color: white; }
+        .tab-button:hover:not(.active) { background: var(--blue-light); color: var(--blue); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .sub-tabs { display: flex; flex-wrap: wrap; justify-content: flex-start; margin-bottom: 16px; gap: 4px; }
+        .sub-tab-button { background: var(--white); border: 1.5px solid var(--border); color: var(--text-muted); padding: 6px 14px; margin: 0; cursor: pointer; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: 'Manrope', sans-serif; transition: all 0.15s; }
+        .sub-tab-button.active { background: var(--blue); color: white; border-color: var(--blue); }
+        .sub-tab-button:hover:not(.active) { border-color: var(--blue); color: var(--blue); }
+        .controls { margin-bottom: 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px 16px; }
+        .controls button { background: var(--white); color: var(--text-muted); border: 1.5px solid var(--border); padding: 6px 14px; margin: 0; border-radius: 7px; font-size: 13px; font-weight: 700; font-family: 'Manrope', sans-serif; cursor: pointer; transition: all 0.15s; }
+        .controls button:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
+        .controls select { background: var(--white); color: var(--text); border: 1.5px solid var(--border); padding: 6px 10px; margin: 0; border-radius: 7px; font-size: 13px; font-weight: 600; font-family: 'Manrope', sans-serif; outline: none; }
+        .controls input { background: var(--white); color: var(--text); border: 1.5px solid var(--border); padding: 6px 10px; margin: 0; border-radius: 7px; font-size: 13px; font-family: 'Manrope', sans-serif; outline: none; }
+        .controls label { font-size: 13px; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+        .controls input[type="checkbox"] { accent-color: var(--blue); }
+        .chart-area { display: flex; justify-content: flex-start; gap: 20px; }
+        #chart-container { flex: 1; min-width: 0; height: 500px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; }
+        #chart { width: 100% !important; height: 100% !important; }
+        #latest-data { width: 260px; flex-shrink: 0; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; }
+        #latest-data h3 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px; }
+        #heatmap { width: 100%; height: 600px; background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius); margin: 0 auto; overflow: hidden; }
+        .tile-text { fill: white; font-size: 12px; font-family: 'Manrope', sans-serif; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+        table { border-collapse: collapse; width: 100%; background: var(--white); border-radius: var(--radius); overflow: hidden; }
+        th { background: var(--bg); color: var(--text-muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 10px; border: 1px solid var(--border); }
+        td { border: 1px solid var(--border); padding: 10px; text-align: left; font-size: 13px; font-weight: 600; }
+        .dynamics-table td, .dynamics-table th { text-align: center; }
+        h2 { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 6px; text-align: left; }
+
+    </style>
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="../core/kz.js" data-role="admin" data-page="analytics"></script>
+</head>
+<body>
+    <div class="page-header">
+        <div class="logo-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg></div>
+        <h1>Аналитика</h1>
+    </div>
+    <div class="page-body">
+    <div class="tabs">
+        <button class="tab-button active" onclick="openTab('graphs')">Графики</button>
+        <button class="tab-button" onclick="openTab('heatmap')">Тепловая карта</button>
+        <button class="tab-button" onclick="openTab('dynamics')">Динамика прироста</button>
+    </div>
+
+    <div id="graphs" class="tab-content active">
+        <div class="sub-tabs" id="subTabs"></div>
+        <div class="controls">
+            <button onclick="setPeriod(3)">3 дня</button>
+            <button onclick="setPeriod(7)">7 дней</button>
+            <button onclick="setPeriod(30)">30 дней</button>
+            <button onclick="setPeriod(60)">60 дней</button>
+            <button onclick="setPeriod(120)">120 дней</button>
+            <label>С: <input type="date" id="startDate"></label>
+            <label>По: <input type="date" id="endDate"></label>
+            <button onclick="updateChartWithCustomPeriod()">Применить</button>
+            <br>
+            <label><input type="checkbox" id="excludeZeros" checked onchange="updateChart()"> Исключить нулевые значения (пропускать дни без данных)</label>
+            <select id="movingAvg" onchange="updateChart()">
+                <option value="0">Без скользящей средней</option>
+                <option value="3">Скользящая средняя (3 дня)</option>
+                <option value="7">Скользящая средняя (7 дней)</option>
+            </select>
+            <label id="averageLabel" style="display:none;"><input type="checkbox" id="showAverage" onchange="updateChart()"> Усреднённое по всем ПВЗ</label>
+        </div>
+        <div class="chart-area">
+            <div id="chart-container">
+                <canvas id="chart"></canvas>
+            </div>
+            <div id="latest-data"></div>
+        </div>
+    </div>
+
+    <div id="heatmap-tab" class="tab-content"><div id="heatmap"></div>
+
+    </div></div>
+    <div id="dynamics" class="tab-content"><div class="page-body" style="padding-top:0;">
+        <h2 style="text-align:center;">Динамика прироста приёмки (по видам маркетплейсов)</h2>
+        <p style="text-align:center; color:#aaa; margin-bottom:20px;">Прирост = (сумма за последние N дней − сумма за предыдущие N дней) / сумма за предыдущие N дней × 100%</p>
+        <div id="dynamics-table" style="overflow-x:auto;"></div>
+    </div>
+
+    <script type="module">
+        const { initializeApp } = window.KZM;
+        const { getDatabase, ref, get } = window.KZM;
+        import ru from "https://cdn.jsdelivr.net/npm/date-fns@2.29.3/esm/locale/ru/index.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyDgpd51erVNy_PwSbYTXPISALNMmYtgTN8",
+          authDomain: "kozonko-9bff6.firebaseapp.com",
+          databaseURL: "https://kozonko-9bff6-default-rtdb.europe-west1.firebasedatabase.app",
+          projectId: "kozonko-9bff6",
+          storageBucket: "kozonko-9bff6.appspot.com",
+          messagingSenderId: "128059740430",
+          appId: "1:128059740430:web:5c923c4e9d912be196c75f"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        let appData = null;
+        let log = null;
+        let currentTab = 'graphs';
+        let currentSubTab = 'overall';
+        let periodDays = 7;
+        let startDate, endDate;
+        let chartInstance;
+        let pvzList = [];
+        let pvzNames = {
+            'zrjs4fw': 'БГ',
+            '6y00aso': 'Кудьма',
+            'g275poh': 'Оранжерейная',
+            '7t0enwt': 'Полтавская',
+            'xioddvw': 'Бульвар 23',
+            'ct2h8y1': 'Бульвар 3',
+            'sq24dk9': 'Агрономическая',
+            'anisrvz': 'Родионова',
+            'oflod70': 'АЛ: Ozon ТЦ',
+            '5wgbhty': 'АЛ: Ozon Героев 9',
+            'ablecm2': 'АЛ: Яндекс ТЦ',
+            'e88n70l': 'АЛ: Яндекс Героев 9'
+        };
+        let dataStore = {}; // {pvzId: {date: {ozon?:num, yandex?:num, wb?:num, avito?:num, total?:num}}}
+
+        const mpNames = { ozon: 'Ozon', yandex: 'Yandex', wb: 'WB', avito: 'Avito' };
+        const mpColors = {
+            ozon: 'rgb(75, 192, 192)',
+            yandex: 'rgb(153, 102, 255)',
+            wb: 'rgb(255, 99, 132)',
+            avito: 'rgb(255, 205, 86)'
+        };
+
+        const CUTOFF_DATE = '2026-01-20';
+
+        window.openTab = function(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.tab-button[onclick="openTab('${tabId}')"]`).classList.add('active');
+
+            currentTab = tabId;
+            if (tabId === 'graphs') {
+                document.getElementById('averageLabel').style.display = currentSubTab === 'overall' ? 'inline' : 'none';
+                window.updateChart();
+            } else if (tabId === 'heatmap') {
+                window.drawHeatmap();
+            } else if (tabId === 'dynamics') {
+                window.drawDynamics();
+            }
+        };
+
+        window.setPeriod = function(days) {
+            periodDays = days;
+            const today = new Date();
+            const end = new Date(today);
+            end.setDate(end.getDate() - 1);
+            endDate = end.toISOString().split('T')[0];
+            const start = new Date(end);
+            start.setDate(start.getDate() - (days - 1));
+            startDate = start.toISOString().split('T')[0];
+            document.getElementById('startDate').value = startDate;
+            document.getElementById('endDate').value = endDate;
+            if (currentTab === 'graphs') window.updateChart();
+        };
+
+        window.updateChartWithCustomPeriod = function() {
+            startDate = document.getElementById('startDate').value;
+            endDate = document.getElementById('endDate').value;
+            if (currentTab === 'graphs') window.updateChart();
+        };
+
+        window.openSubTab = function(subId) {
+            currentSubTab = subId;
+            document.querySelectorAll('.sub-tab-button').forEach(btn => btn.classList.remove('active'));
+            const btnText = subId === 'overall' ? 'Общее' : (pvzNames[subId] || subId);
+            const activeBtn = Array.from(document.querySelectorAll('.sub-tab-button')).find(b => b.textContent === btnText);
+            if (activeBtn) activeBtn.classList.add('active');
+            document.getElementById('averageLabel').style.display = subId === 'overall' ? 'inline' : 'none';
+            window.updateChart();
+        };
+
+        async function fetchData() {
+            try {
+                const snapshot = await get(ref(db, '/'));
+                const data = snapshot.val();
+                appData = data.appData || {};
+                log = data.log || {};
+                initApp();
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                appData = {};
+                log = {};
+                initApp();
+            }
+        }
+
+        function initApp() {
+            const order = appData.order || Object.keys(pvzNames);
+            pvzList = order.filter(id => id !== 'krt2xjr');
+            processData();
+            window.setPeriod(7);
+            initSubTabs();
+            window.openTab(currentTab);
+        }
+
+        function processData() {
+            dataStore = {};
+
+            // 1. Старые данные из monthData (до 20 января 2026 — вся приёмка = Ozon)
+            pvzList.forEach(p => {
+                dataStore[p] = {};
+                const tab = appData.tabs?.[p];
+                if (!tab) return;
+                const monthData = tab.monthData || {};
+                Object.values(monthData).forEach(month => {
+                    const events = month.openCloseEvents || {};
+                    Object.entries(events).forEach(([date, info]) => {
+                        if (!dataStore[p][date]) dataStore[p][date] = {};
+                        const rec = info.received_count || 0;
+                        if (date < CUTOFF_DATE) {
+                            dataStore[p][date].ozon = rec;
+                        }
+                    });
+                });
+            });
+
+            // 2. Новые данные из лога (Записано *_received_count)
+            if (log) {
+                Object.values(log).forEach(entry => {
+                    if (typeof entry !== 'string') return;
+                    const match = entry.match(/Записано (\w+)_received_count (\d+) для (\w+) \([^\)]+\) на (\d{4}-\d{2}-\d{2})/);
+                    if (match) {
+                        const mp = match[1];           // ozon / yandex / wb / avito
+                        const num = parseInt(match[2], 10);
+                        const tabId = match[3];
+                        const date = match[4];
+                        if (!pvzList.includes(tabId)) return;
+                        if (!dataStore[tabId]) dataStore[tabId] = {};
+                        if (!dataStore[tabId][date]) dataStore[tabId][date] = {};
+                        dataStore[tabId][date][mp] = num;
+                    }
+                });
+            }
+
+            // 3. Вычисляем total для каждого дня (нужно для тепловой карты и overall)
+            pvzList.forEach(p => {
+                Object.keys(dataStore[p] || {}).forEach(date => {
+                    const entry = dataStore[p][date];
+                    entry.total = (entry.ozon || 0) + (entry.yandex || 0) + (entry.wb || 0) + (entry.avito || 0);
+                });
+            });
+        }
+
+        function initSubTabs() {
+            const subTabs = document.getElementById('subTabs');
+            subTabs.innerHTML = '';
+            pvzList.forEach(p => {
+                const button = document.createElement('button');
+                button.classList.add('sub-tab-button');
+                button.textContent = pvzNames[p] || p;
+                button.onclick = () => window.openSubTab(p);
+                subTabs.appendChild(button);
+            });
+            const overallButton = document.createElement('button');
+            overallButton.classList.add('sub-tab-button');
+            overallButton.textContent = 'Общее';
+            overallButton.onclick = () => window.openSubTab('overall');
+            subTabs.appendChild(overallButton);
+            window.openSubTab('overall');
+        }
+
+        function getDates() {
+            const dates = [];
+            let current = new Date(startDate);
+            const end = new Date(endDate);
+            while (current <= end) {
+                dates.push(current.toISOString().split('T')[0]);
+                current.setDate(current.getDate() + 1);
+            }
+            return dates;
+        }
+
+        function calculateMovingAverage(data, windowSize) {
+            const avg = [];
+            for (let i = 0; i < data.length; i++) {
+                const start = Math.max(0, i - windowSize + 1);
+                const slice = data.slice(start, i + 1).filter(v => v !== null);
+                avg.push(slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : null);
+            }
+            return avg;
+        }
+
+        function getRandomColor() {
+            return '#' + Math.floor(Math.random() * 16777215).toString(16);
+        }
+
+        window.updateLatestData = function(datasets, dates) {
+            if (dates.length === 0) {
+                document.getElementById('latest-data').innerHTML = '<h3>Нет данных</h3>';
+                return;
+            }
+            const latestDate = dates[dates.length - 1];
+            let html = `<h3>Данные за ${latestDate}</h3>`;
+            html += '<table><tr><th>Линия</th><th>Значение</th></tr>';
+            datasets.forEach(dataset => {
+                const lastValue = dataset.data[dataset.data.length - 1];
+                const display = lastValue === null || lastValue === undefined ? '—' : lastValue.toFixed(0);
+                html += `<tr><td>${dataset.label}</td><td>${display}</td></tr>`;
+            });
+            html += '</table>';
+            document.getElementById('latest-data').innerHTML = html;
+        };
+
+        window.updateChart = function() {
+            const ctx = document.getElementById('chart').getContext('2d');
+            const dates = getDates();
+            const excludeZeros = document.getElementById('excludeZeros').checked;
+            const movingAvgWindow = parseInt(document.getElementById('movingAvg').value);
+            const showAvg = document.getElementById('showAverage').checked && currentSubTab === 'overall';
+
+            let datasets = [];
+
+            const processSeries = (rawData, label, color, isDashed = false) => {
+                let dataArr = rawData;
+                if (excludeZeros) {
+                    dataArr = rawData.map(v => v > 0 ? v : null);
+                }
+                const baseDataset = {
+                    label: label,
+                    data: dataArr,
+                    borderColor: color,
+                    borderWidth: isDashed ? 2 : 3,
+                    borderDash: isDashed ? [5, 5] : [],
+                    fill: false,
+                    tension: 0.2
+                };
+                datasets.push(baseDataset);
+                if (movingAvgWindow > 0) {
+                    const maData = calculateMovingAverage(dataArr, movingAvgWindow);
+                    datasets.push({
+                        label: `${label} MA${movingAvgWindow}`,
+                        data: maData,
+                        borderColor: '#ffeb3b',
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.2
+                    });
+                }
+            };
+
+            if (currentSubTab === 'overall') {
+                // Общее: одна линия на ПВЗ (total = сумма всех маркетплейсов)
+                pvzList.forEach(p => {
+                    const rawTotal = dates.map(d => {
+                        const entry = dataStore[p]?.[d] || {};
+                        return entry.total || 0;
+                    });
+                    processSeries(rawTotal, pvzNames[p] || p, getRandomColor());
+                });
+                if (showAvg) {
+                    const avgData = dates.map(d => {
+                        let sum = 0, count = 0;
+                        pvzList.forEach(p => {
+                            const entry = dataStore[p]?.[d] || {};
+                            const tot = entry.total || 0;
+                            if (tot > 0 || !excludeZeros) {
+                                sum += tot;
+                                count++;
+                            }
+                        });
+                        return count ? sum / count : null;
+                    });
+                    datasets.push({
+                        label: 'Усреднённое по всем ПВЗ',
+                        data: avgData,
+                        borderColor: '#ffffff',
+                        borderWidth: 5,
+                        borderDash: [5, 5],
+                        fill: false
+                    });
+                }
+            } else {
+                // Конкретный ПВЗ: отдельная линия на каждый маркетплейс
+                const mps = ['ozon', 'yandex', 'wb', 'avito'];
+                let hasAnyData = false;
+                mps.forEach(mp => {
+                    const rawData = dates.map(d => dataStore[currentSubTab]?.[d]?.[mp] || 0);
+                    if (rawData.some(v => v > 0)) hasAnyData = true;
+                    processSeries(rawData, mpNames[mp] || mp, mpColors[mp]);
+                });
+                // Если вообще нет данных — показываем хотя бы одну пустую линию Ozon
+                if (!hasAnyData) {
+                    const rawData = dates.map(() => 0);
+                    processSeries(rawData, 'Ozon', mpColors.ozon);
+                }
+            }
+
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels: dates, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'day' },
+                            adapters: { date: { locale: ru } },
+                            ticks: { color: '#aaa' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#aaa' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: 'white', usePointStyle: true } },
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            });
+
+            window.updateLatestData(datasets, dates);
+        };
+
+        window.drawHeatmap = function() {
+            const container = d3.select('#heatmap');
+            container.html('');
+            const today = new Date();
+            const last3Days = [];
+            const prev3Days = [];
+            for (let i = 1; i <= 3; i++) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                last3Days.push(date.toISOString().split('T')[0]);
+            }
+            for (let i = 4; i <= 6; i++) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                prev3Days.push(date.toISOString().split('T')[0]);
+            }
+
+            const data = pvzList.map(p => {
+                const avgLast = last3Days.reduce((sum, d) => sum + (dataStore[p]?.[d]?.total || 0), 0) / 3;
+                const avgPrev = prev3Days.reduce((sum, d) => sum + (dataStore[p]?.[d]?.total || 0), 0) / 3;
+                let percent = 0;
+                if (avgPrev !== 0) {
+                    percent = ((avgLast - avgPrev) / avgPrev) * 100;
+                } else if (avgLast !== 0) {
+                    percent = 100;
+                }
+                return { name: pvzNames[p] || p, value: avgLast, percent };
+            });
+
+            const width = 900;
+            const height = 600;
+            const svg = container.append('svg')
+                .attr('width', width)
+                .attr('height', height)
+                .attr('viewBox', `0 0 ${width} ${height}`);
+
+            const treemap = d3.treemap()
+                .size([width, height])
+                .padding(1)
+                .round(true)
+                .tile(d3.treemapSquarify.ratio(1.5));
+
+            const root = d3.hierarchy({ children: data }).sum(d => d.value);
+            treemap(root);
+
+            svg.selectAll('rect')
+                .data(root.leaves())
+                .enter()
+                .append('rect')
+                .attr('x', d => d.x0)
+                .attr('y', d => d.y0)
+                .attr('width', d => d.x1 - d.x0)
+                .attr('height', d => d.y1 - d.y0)
+                .attr('fill', d => {
+                    const absPercent = Math.abs(d.data.percent);
+                    if (absPercent < 5) return '#808080';
+                    const intensity = Math.min((absPercent - 5) / 95, 1);
+                    return d.data.percent > 0
+                        ? d3.interpolateRgb('#90ee90', '#008000')(intensity)
+                        : d3.interpolateRgb('#ffcccc', '#cc0000')(intensity);
+                });
+
+            const leaves = svg.selectAll('g')
+                .data(root.leaves())
+                .enter()
+                .append('g')
+                .attr('transform', d => `translate(${(d.x0 + d.x1) / 2}, ${(d.y0 + d.y1) / 2})`);
+
+            leaves.each(function(d) {
+                const tileWidth = d.x1 - d.x0;
+                const tileHeight = d.y1 - d.y0;
+                if (tileWidth < tileHeight) {
+                    d3.select(this).attr('transform', `translate(${(d.x0 + d.x1) / 2}, ${(d.y0 + d.y1) / 2}) rotate(90)`);
+                }
+            });
+
+            leaves.append('text')
+                .attr('class', 'tile-text')
+                .attr('dy', '-0.5em')
+                .attr('font-size', d => Math.min((d.x1 - d.x0) / 9, (d.y1 - d.y0) / 9) + 'px')
+                .text(d => `${d.data.name} (${Math.round(d.data.value)})`);
+
+            leaves.append('text')
+                .attr('class', 'tile-text')
+                .attr('dy', '0.5em')
+                .attr('font-size', d => Math.min((d.x1 - d.x0) / 10, (d.y1 - d.y0) / 10) + 'px')
+                .text(d => {
+                    const arrow = d.data.percent > 0 ? '↑' : (d.data.percent < 0 ? '↓' : '→');
+                    return `${d.data.percent.toFixed(1)}% ${arrow}`;
+                });
+        };
+
+        // ====================== ДИНАМИКА ПРИРОСТА ======================
+        function getSumInDateRange(pvz, mp, startStr, endStr) {
+            let sum = 0;
+            const data = dataStore[pvz] || {};
+            Object.keys(data).forEach(d => {
+                if (d >= startStr && d <= endStr) {
+                    sum += data[d][mp] || 0;
+                }
+            });
+            return sum;
+        }
+
+        function getSumForPeriod(pvz, mp, days) {
+            const pvzDates = Object.keys(dataStore[pvz] || {}).sort();
+            if (pvzDates.length === 0) return 0;
+            const latest = pvzDates[pvzDates.length - 1];
+            const end = new Date(latest);
+            const start = new Date(end);
+            start.setDate(end.getDate() - days + 1);
+            const startStr = start.toISOString().split('T')[0];
+            return getSumInDateRange(pvz, mp, startStr, latest);
+        }
+
+        function getSumForPrevPeriod(pvz, mp, days) {
+            const pvzDates = Object.keys(dataStore[pvz] || {}).sort();
+            if (pvzDates.length === 0) return 0;
+            const latest = pvzDates[pvzDates.length - 1];
+            const end = new Date(latest);
+            const startLast = new Date(end);
+            startLast.setDate(end.getDate() - days + 1);
+            const endPrev = new Date(startLast);
+            endPrev.setDate(endPrev.getDate() - 1);
+            const startPrev = new Date(endPrev);
+            startPrev.setDate(startPrev.getDate() - days + 1);
+            const startPrevStr = startPrev.toISOString().split('T')[0];
+            const endPrevStr = endPrev.toISOString().split('T')[0];
+            return getSumInDateRange(pvz, mp, startPrevStr, endPrevStr);
+        }
+
+        window.drawDynamics = function() {
+            const periods = [30, 60, 90, 120, 360];
+            let html = `<table class="dynamics-table" style="width:100%; border-collapse:collapse;"><tr><th style="text-align:left;">ПВЗ</th><th>Вид</th>`;
+            periods.forEach(per => {
+                html += `<th>${per} дней</th>`;
+            });
+            html += `</tr>`;
+
+            pvzList.forEach(p => {
+                const mps = ['ozon', 'yandex', 'wb', 'avito'];
+                mps.forEach(mp => {
+                    // Показываем только те, где есть хотя бы какие-то данные за последние 360 дней
+                    const sum360 = getSumForPeriod(p, mp, 360);
+                    if (sum360 === 0) return;
+
+                    html += `<tr><td style="text-align:left;">${pvzNames[p] || p}</td><td>${mpNames[mp]}</td>`;
+                    periods.forEach(days => {
+                        const sumLast = getSumForPeriod(p, mp, days);
+                        const sumPrev = getSumForPrevPeriod(p, mp, days);
+                        let perc = 0;
+                        if (sumPrev > 0) {
+                            perc = Math.round(((sumLast - sumPrev) / sumPrev) * 100);
+                        } else if (sumLast > 0) {
+                            perc = 100;
+                        }
+                        const color = perc > 20 ? '#4ade80' : perc < -20 ? '#f87171' : (perc > 0 ? '#a3e635' : '#cbd5e1');
+                        html += `<td style="color:${color}; font-weight:bold;">${perc}%</td>`;
+                    });
+                    html += `</tr>`;
+                });
+            });
+
+            html += `</table>`;
+            document.getElementById('dynamics-table').innerHTML = html;
+        };
+
+        fetchData();
+    </script>
+    </div></div><!-- close dynamics and page-body -->
+</body>
+</html>

@@ -8,8 +8,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800;900&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <!-- Firebase compat SDK — works from file:// without HTTP server -->
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="core/kz.js" data-role="staff" data-page="staff"></script>
 <style>
 :root{
   --bg:#F2F0EC;
@@ -1027,36 +1030,37 @@ let inventory={},globalCfg={},pvzCfg={},cart={};
 let pvzMapAll={},editingItem=null;
 let shiftData={},statTimers={},chartPeriod=120,chartInst=null;
 let pageBuilt=false,banners=[],bnrIdx=0,bnrTimer=null;
-// ── EMPLOYEE CACHE: загружается один раз, все функции используют getEmployees() ──
+// ── СПРАВОЧНИК СОТРУДНИКОВ ──────────────────────────────────────────────────
+// Панель ПВЗ открыта без пароля, поэтому читает /staffDirectory: только имя,
+// цвет, аватар и пр. (собирает jobparc раз в минуту из /appData/employees).
+// Ставка, удержания и реквизиты — только в личном кабинете по PIN (/staffCabinet).
 let _empCache=null;
+const DIR_CACHE_KEY='_pvz_dir_cache';
+try{localStorage.removeItem('_pvz_emp_cache');}catch(e){} // старый кэш хранил PIN и реквизиты
 async function getEmployees(){
-  // 1. Память (в рамках текущей сессии)
   if(_empCache)return _empCache;
-  // 2. localStorage с TTL 1 час — экономит 8.8 MB × 28 из 30 загрузок в день
   try{
-    const cached=localStorage.getItem('_pvz_emp_cache');
+    const cached=localStorage.getItem(DIR_CACHE_KEY);
     if(cached){
       const {ts,data}=JSON.parse(cached);
-      if(Date.now()-ts < 3600000){ // 1 час
-        _empCache=data;
-        return _empCache;
-      }
+      if(Date.now()-ts < 600000){ _empCache=data; return _empCache; } // 10 минут
     }
   }catch(e){}
-  // 3. Firebase — только если нет кэша
-  const snap=await get(ref(fdb,'/appData/employees'));
-  const raw=snap.val();
-  _empCache=Array.isArray(raw)?raw:Object.values(raw||{});
-  // Сохраняем в localStorage
-  try{
-    localStorage.setItem('_pvz_emp_cache',JSON.stringify({ts:Date.now(),data:_empCache}));
-  }catch(e){}
+  const snap=await get(ref(fdb,'/staffDirectory'));
+  _empCache=Object.values(snap.val()||{});
+  try{localStorage.setItem(DIR_CACHE_KEY,JSON.stringify({ts:Date.now(),data:_empCache}));}catch(e){}
   return _empCache;
 }
 function invalidateEmpCache(){
   _empCache=null;
-  try{localStorage.removeItem('_pvz_emp_cache');}catch(e){}
+  try{localStorage.removeItem(DIR_CACHE_KEY);}catch(e){}
 }
+// Адрес личного кабинета = sha256("kz-cab|empId|pin") — тот же расчёт в jobparc/maintenance.py
+async function cabinetToken(empId,pin){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(`kz-cab|${empId}|${pin}`));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+let _lkToken=null;
 let showSMA=true,showAvg=false;
 let mktRequired={};// {mkt: true/false} from /supplies/config/mkt_required (default: required)
 const pvzPickM=new Map();
@@ -3273,10 +3277,10 @@ async function saveLkAvatar(data){
   const emps=await getEmployees();
   const idx=emps.findIndex(e=>e?.id===_lkEmpId);
   if(idx<0){toast('Ошибка: сотрудник не найден');return;}
-  await set(ref(fdb,`/appData/employees/${idx}/avatarUrl`),data);
-  // Обновляем кэш в памяти и localStorage
+  // Заявка на смену аватара: jobparc перенесёт её в карточку сотрудника в течение минуты
+  await set(ref(fdb,`/staffRequests/${_lkEmpId}/avatar`),{url:data,ts:Date.now()});
   _empCache[idx]={..._empCache[idx],avatarUrl:data};
-  try{localStorage.setItem('_pvz_emp_cache',JSON.stringify({ts:Date.now(),data:_empCache}));}catch(e){}
+  try{localStorage.setItem(DIR_CACHE_KEY,JSON.stringify({ts:Date.now(),data:_empCache}));}catch(e){}
   toast('Аватарка обновлена!');
   if(window._todayEmpData?.id===_lkEmpId){
     window._todayEmpData.avatarUrl=data;
@@ -3300,13 +3304,15 @@ window.submitPin=async function(){
   try{
     const rawEmp=await getEmployees();
     const emps=Array.isArray(rawEmp)?rawEmp:Object.values(rawEmp||{});
-    const emp=emps.find(e=>e?.id===_lkEmpId);
-    if(!emp){document.getElementById('pinError').textContent='Сотрудник не найден';return;}
-    const pin=String(emp.staffPin||'').trim();
-    if(!pin){document.getElementById('pinError').textContent='Пароль не назначен. Запросите пароль у управляющих';return;}
-    if(pin!==entered){document.getElementById('pinError').textContent='Неверный пароль';return;}
+    const dirEmp=emps.find(e=>e?.id===_lkEmpId);
+    if(!dirEmp){document.getElementById('pinError').textContent='Сотрудник не найден';return;}
+    if(!dirEmp.hasPin){document.getElementById('pinError').textContent='Пароль не назначен. Запросите пароль у управляющих';return;}
+    const token=await cabinetToken(_lkEmpId,entered);
+    const cab=(await get(ref(fdb,`/staffCabinet/${token}`))).val();
+    if(!cab||cab.empId!==_lkEmpId||!cab.emp){document.getElementById('pinError').textContent='Неверный пароль';return;}
+    _lkToken=token;
     document.getElementById('pinOv').classList.remove('open');
-    openPersonalAccount(emp);
+    openPersonalAccount(cab.emp);
   }catch(e){document.getElementById('pinError').textContent='Ошибка: '+e.message;}
 };
 
@@ -3337,13 +3343,11 @@ window.submitNewPin=async function(){
   if(np!==np2){errEl.textContent='Пароли не совпадают';return;}
   if(!_lkEmpId){errEl.textContent='Сотрудник не определён';return;}
   try{
-    // Read employees fresh from Firebase (cache may be empty)
-    const raw=await getEmployees();
-    const emps=Array.isArray(raw)?raw:Object.values(raw||{});
-    const empIdx=emps.findIndex(e=>e?.id===_lkEmpId);
-    if(empIdx<0){errEl.textContent='Сотрудник не найден в базе';return;}
-    await set(ref(fdb,`/appData/employees/${empIdx}/staffPin`),np);
-    toast('✅ Пароль изменён');
+    if(!_lkToken){errEl.textContent='Сначала войдите в кабинет текущим паролем';return;}
+    // Заявка на смену PIN: jobparc проверит старый пароль и применит в течение минуты
+    await set(ref(fdb,`/staffRequests/${_lkEmpId}/pin`),{token:_lkToken,pin:np,ts:Date.now()});
+    _lkToken=null;
+    toast('✅ Новый пароль заработает в течение минуты');
     closeChangePin();
   }catch(e){errEl.textContent='Ошибка: '+e.message;}
 };

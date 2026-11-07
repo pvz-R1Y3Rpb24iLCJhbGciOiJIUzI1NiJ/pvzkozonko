@@ -1,0 +1,2526 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Админ-панель · OZON PVZ</title>
+<!-- kz-core -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="../core/kz.js" data-role="admin" data-page="panel"></script>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;900&family=Onest:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--oz-blue:#005BFF;--oz-blue-light:#E8F0FF;--oz-blue-mid:#4D8EFF;--oz-orange:#FF6100;--oz-orange-light:#FFF0E8;--surface:#FFFFFF;--surface-2:#F5F7FA;--surface-3:#EEF1F7;--border:#E0E6EF;--text:#0D1829;--text-2:#4A5568;--text-3:#8A94A6;--green:#00B87A;--green-light:#E6F9F2;--red:#FF3B3B;--red-light:#FFF0F0;--yellow:#F59E0B;--yellow-light:#FFFBEB;--radius:16px;--radius-sm:10px;--shadow:0 2px 16px rgba(0,91,255,.07);--shadow-md:0 4px 32px rgba(0,91,255,.12)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Onest',sans-serif;background:var(--surface-2);color:var(--text);min-height:100vh;font-size:14px}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 32px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,91,255,.06)}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:36px;height:36px;background:var(--oz-blue);border-radius:10px;display:flex;align-items:center;justify-content:center}
+.logo-text{font-family:'Unbounded',sans-serif;font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.3px}
+.logo-sub{font-size:11px;color:var(--text-3);margin-top:1px}
+.header-actions{display:flex;align-items:center;gap:12px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:10px;font-family:'Onest',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s ease;text-decoration:none}
+.btn-primary{background:var(--oz-blue);color:#fff}.btn-primary:hover{background:#0047d4}
+.btn-secondary{background:var(--surface-3);color:var(--text)}.btn-secondary:hover{background:var(--border)}
+.btn-ghost{background:transparent;color:var(--text-2);border:1px solid var(--border)}.btn-ghost:hover{background:var(--surface-3)}
+.btn-danger{background:var(--red-light);color:var(--red)}.btn-danger:hover{background:#ffe0e0}
+.btn-sm{padding:5px 10px;font-size:12px;border-radius:8px}
+.layout{display:flex;min-height:calc(100vh - 64px)}
+aside{width:220px;background:var(--surface);border-right:1px solid var(--border);padding:24px 0;flex-shrink:0;position:sticky;top:64px;height:calc(100vh - 64px);overflow-y:auto}
+.nav-group{margin-bottom:8px}
+.nav-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-3);padding:0 20px 8px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;cursor:pointer;color:var(--text-2);font-weight:500;font-size:13px;border-left:3px solid transparent;transition:all .12s}
+.nav-item:hover{background:var(--surface-2);color:var(--text)}
+.nav-item.active{background:var(--oz-blue-light);color:var(--oz-blue);border-left-color:var(--oz-blue)}
+.nav-item svg{width:16px;height:16px;flex-shrink:0}
+.nav-badge{margin-left:auto;background:var(--oz-blue);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;line-height:1.2}
+main{flex:1;padding:28px 32px;max-width:calc(100vw - 220px);overflow:hidden}
+.page{display:none}.page.active{display:block}
+.page-title{font-family:'Unbounded',sans-serif;font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
+.page-subtitle{color:var(--text-3);font-size:13px;margin-bottom:28px}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;align-items:center;gap:14px}
+.stat-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stat-icon svg{width:22px;height:22px}
+.stat-icon.blue{background:var(--oz-blue-light);color:var(--oz-blue)}
+.stat-icon.orange{background:var(--oz-orange-light);color:var(--oz-orange)}
+.stat-icon.green{background:var(--green-light);color:var(--green)}
+.stat-icon.red{background:var(--red-light);color:var(--red)}
+.stat-value{font-family:'Unbounded',sans-serif;font-size:26px;font-weight:900;line-height:1;letter-spacing:-1px}
+.stat-label{font-size:12px;color:var(--text-3);margin-top:4px}
+.pvz-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.pvz-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:box-shadow .15s,border-color .15s}
+.pvz-card:hover{box-shadow:var(--shadow-md);border-color:var(--oz-blue-mid)}
+.pvz-card-header{padding:18px 20px 14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.pvz-name{font-family:'Unbounded',sans-serif;font-size:14px;font-weight:700;letter-spacing:-.2px}
+.pvz-id{font-size:11px;color:var(--text-3);margin-top:2px}
+.pvz-status{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;flex-shrink:0}
+.pvz-status.ok{background:var(--green-light);color:var(--green)}
+.pvz-status.warn{background:var(--yellow-light);color:var(--yellow)}
+.pvz-status.low{background:var(--red-light);color:var(--red)}
+.pvz-status-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.pvz-items{padding:0 20px 16px;display:flex;flex-wrap:wrap;gap:6px}
+.supply-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 10px;border-radius:8px;background:var(--surface-3);color:var(--text-2);font-weight:500}
+.supply-chip.low{background:var(--red-light);color:var(--red)}
+.supply-chip.warn{background:var(--yellow-light);color:var(--yellow)}
+.supply-chip.ok{background:var(--green-light);color:var(--green)}
+.supply-chip.warn{background:var(--yellow-light);color:var(--yellow)}
+.supply-chip-qty{font-weight:700}
+.pvz-card-footer{border-top:1px solid var(--border);padding:12px 20px;display:flex;gap:8px}
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.table-header{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.table-title{font-family:'Unbounded',sans-serif;font-size:14px;font-weight:700}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);padding:10px 24px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+td{padding:14px 24px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}tr:hover td{background:var(--surface-2)}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px}
+.tag-pending{background:var(--yellow-light);color:var(--yellow)}
+.tag-ordered{background:var(--oz-blue-light);color:var(--oz-blue)}
+.tag-received{background:var(--green-light);color:var(--green)}
+.config-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;overflow:hidden}
+.config-section-header{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.config-section-title{font-family:'Unbounded',sans-serif;font-size:14px;font-weight:700}
+.config-body{padding:20px 24px}
+.supply-config-row{display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+.supply-config-row:last-child{border-bottom:none}
+.supply-config-name{font-weight:600;font-size:13px}
+.input{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-family:'Onest',sans-serif;font-size:13px;color:var(--text);background:var(--surface);transition:border-color .12s;width:100%}
+.input:focus{outline:none;border-color:var(--oz-blue);box-shadow:0 0 0 3px var(--oz-blue-light)}
+.input-sm{padding:6px 10px;font-size:12px}
+.aliases-list{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.alias-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;background:var(--oz-blue-light);color:var(--oz-blue);padding:3px 8px;border-radius:6px;font-weight:500}
+.alias-remove{cursor:pointer;line-height:1;opacity:.6}.alias-remove:hover{opacity:1}
+.overlay{display:none;position:fixed;inset:0;background:rgba(13,24,41,.4);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:20px;width:480px;max-width:calc(100vw - 40px);max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.18);animation:slideUp .2s ease}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-header{padding:24px 24px 0;display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-family:'Unbounded',sans-serif;font-size:16px;font-weight:800}
+.modal-close{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;color:var(--text-3);background:var(--surface-3);font-size:18px;border:none;font-weight:300}
+.modal-close:hover{background:var(--border);color:var(--text)}
+.modal-body{padding:20px 24px}
+.modal-footer{padding:0 24px 24px;display:flex;gap:10px;justify-content:flex-end}
+.form-group{margin-bottom:16px}
+.form-label{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+.log-item{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)}
+.log-item:last-child{border-bottom:none}
+.log-dot{width:8px;height:8px;border-radius:50%;background:var(--oz-blue);margin-top:5px;flex-shrink:0}
+.log-dot.manual{background:var(--oz-orange)}.log-dot.arrival{background:var(--green)}
+.log-time{font-size:11px;color:var(--text-3);white-space:nowrap}
+.log-text{font-size:13px;line-height:1.5}
+.log-pvz{font-weight:600;color:var(--oz-blue)}
+.empty{text-align:center;padding:60px 20px;color:var(--text-3)}
+.empty-icon{font-size:48px;margin-bottom:12px}
+.empty-title{font-weight:700;font-size:15px;color:var(--text-2);margin-bottom:6px}
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--text);color:#fff;padding:12px 24px;border-radius:12px;font-size:13px;font-weight:500;z-index:999;transition:transform .25s ease;pointer-events:none;white-space:nowrap}
+#toast.show{transform:translateX(-50%) translateY(0)}
+.qty-editor{display:flex;align-items:center;gap:6px}
+.qty-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--surface-3);border:1px solid var(--border);cursor:pointer;font-size:16px;color:var(--text);line-height:1;user-select:none;transition:background .1s}
+.qty-btn:hover{background:var(--border)}
+.qty-val{font-family:'Unbounded',sans-serif;font-size:14px;font-weight:700;width:48px;text-align:center}
+.divider{height:1px;background:var(--border);margin:20px 0}
+/* PVZ list in admin */
+.pvz-list-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;overflow:hidden}
+.pvz-list-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:center;padding:12px 24px;border-bottom:1px solid var(--border);font-size:13px}
+.pvz-list-row:last-child{border-bottom:none}
+.pvz-list-row:hover{background:var(--surface-2)}
+.pvz-list-name{font-weight:600}
+.pvz-list-id{color:var(--text-3);font-family:monospace;font-size:12px}
+.pvz-list-chat{color:var(--text-2);font-family:monospace;font-size:12px}
+.info-banner{background:var(--oz-blue-light);border:1px solid rgba(0,91,255,.15);border-radius:12px;padding:14px 18px;margin-bottom:20px;font-size:13px;color:var(--text-2);line-height:1.5}
+.info-banner strong{color:var(--oz-blue)}
+.pvz-inp{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:Onest,sans-serif;background:var(--surface)}
+.cfg-lbl{font-size:10px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;font-weight:600}
+</style>
+</head>
+<body>
+<script>
+// Firebase compat SDK shim (CDN loaded in <head>)
+function initializeApp(cfg){ return firebase.initializeApp(cfg); }
+function getDatabase()     { return firebase.database(); }
+function ref(db, path)     { return db.ref ? db.ref(path) : db; }
+function onValue(r, cb, err){ r.on('value', cb, err||null); return ()=>r.off('value',cb); }
+async function set(r, val)  { return r.set(val); }
+async function get(r)       { return r.once('value'); }
+
+// ══════════════════════════════════════════════════════════════
+// CLOUDINARY — загрузка изображений
+// Вместо base64 в Firebase — URL в Cloudinary (бесплатно, CDN)
+// ══════════════════════════════════════════════════════════════
+const CLOUDINARY_CLOUD = 'dq3hp68p3';
+const CLOUDINARY_PRESET = 'kozonko_unsigned';
+
+async function uploadToCloudinary(file, folder='banners') {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', CLOUDINARY_PRESET);
+  fd.append('folder', folder);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+    method: 'POST', body: fd
+  });
+  if (!res.ok) throw new Error('Cloudinary upload failed: ' + res.status);
+  const data = await res.json();
+  return data.secure_url; // https://res.cloudinary.com/...
+}
+
+// Сжатие перед загрузкой (опционально, для экономии)
+function compressImage(file, maxPx=1200, quality=0.85) {
+  return new Promise(resolve => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      let {width: w, height: h} = img;
+      if (w > maxPx || h > maxPx) {
+        if (w > h) { h = h * maxPx / w; w = maxPx; }
+        else       { w = w * maxPx / h; h = maxPx; }
+      }
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      cv.toBlob(blob => resolve(new File([blob], file.name, {type:'image/jpeg'})),
+        'image/jpeg', quality);
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  });
+}
+
+async function update(r,val){ return r.update(val); }
+async function remove(r)    { return r.remove(); }
+
+// ═══ ВСТАВЬТЕ КОНФИГ FIREBASE ═══
+const firebaseConfig = {
+  apiKey:            "AIzaSyDgpd51erVNy_PwSbYTXPISALNMmYtgTN8",
+  authDomain:        "kozonko-9bff6.firebaseapp.com",
+  databaseURL:       "https://kozonko-9bff6-default-rtdb.europe-west1.firebasedatabase.app/",
+  projectId:         "kozonko-9bff6",
+  storageBucket:     "kozonko-9bff6.appspot.com",
+  messagingSenderId: "128059740430",
+  appId:             "1:128059740430:web:5c923c4e9d912be196c75f",
+};
+// ════════════════════════════════
+
+const app = initializeApp(firebaseConfig);
+const fdb = getDatabase(app);
+
+// ─── STATE ───────────────────────────────────────────────────────────
+// pvzMap читается из Firebase /supplies/pvz_list (редактируется в админке)
+let pvzMap       = {};  // pvz_id → {pvz_name, chat_peer_id}
+let pvzListData  = pvzMap;  // alias
+let inventoryData = {};
+let pvzConfigData = {};  // per-PVZ item visibility from /supplies/config/pvz
+let requestsData  = {};
+let editLogData   = {};
+let globalConfig  = {};
+let editingPvzId  = null;
+
+// ─── PVZ LIST из Firebase ────────────────────────────────────────────
+onValue(ref(fdb, '/supplies/pvz_list'), snap => {
+  pvzMap = snap.val() || {};
+  pvzListData = pvzMap;  // keep alias in sync
+  renderPvzCards();
+  renderPvzAdminList();
+  populateLnPvzSelect();
+  // Re-render cameras if currently on that page
+  if (document.getElementById('page-cameras')?.classList.contains('active')) renderCamAdminList();
+  updateStats();
+});
+
+onValue(ref(fdb, '/supplies/inventory'), snap => {
+  inventoryData = snap.val() || {};
+  renderPvzCards();
+  updateStats();
+});
+
+onValue(ref(fdb, '/supplies/requests'), snap => {
+  requestsData = snap.val() || {};
+  renderRequests();
+  updateStats();
+});
+
+// ОПТИМИЗАЦИЯ: edit_log растёт — грузим только последние 200 записей
+{
+  const editLogRef = fdb.ref('/supplies/edit_log').limitToLast(200);
+  editLogRef.on('value', snap => {
+    editLogData = snap.val() || {};
+    renderEditLog();
+  });
+}
+
+onValue(ref(fdb, '/supplies/config/global'), snap => {
+  const val = snap.val();
+  if (val && typeof val === 'object') {
+    globalConfig = val;
+  } else {
+    // Firebase empty — seed defaults so the list is editable
+    globalConfig = getDefaultConfig();
+    set(ref(fdb, '/supplies/config/global'), globalConfig).catch(()=>{});
+  }
+  renderGlobalConfig();
+});
+
+// ─── HELPERS ─────────────────────────────────────────────────────────
+function getDefaultConfig() {
+  return {
+    "туалетная бумага":{"unit":"рулонов","low_threshold":5,"aliases":["туалетка","тб","т/б"]},
+    "маркеры":{"unit":"штук","low_threshold":3,"aliases":["маркер","маркёры"]},
+    "тряпки":{"unit":"штук","low_threshold":5,"aliases":["тряпка","тряпочки"]},
+    "перчатки":{"unit":"пар","low_threshold":2,"aliases":["нитриловые перчатки"]},
+    "мусорные пакеты":{"unit":"штук","low_threshold":10,"aliases":["мусорный пакет"]},
+    "скотч":{"unit":"рулонов","low_threshold":2,"aliases":["скоч"]},
+    "ручки":{"unit":"штук","low_threshold":3,"aliases":["ручка"]},
+    "антисептик":{"unit":"штук","low_threshold":2,"aliases":["санитайзер"]},
+  };
+}
+
+function getItemStatus(pvzId, itemName) {
+  const inv = (inventoryData[pvzId] || {})[itemName];
+  // Only an explicit status counts. No data = treat as OK (not a problem).
+  if (inv && (inv.status === 'ok' || inv.status === 'warn' || inv.status === 'low')) return inv.status;
+  // Legacy: only use qty if it was actually recorded (not missing)
+  if (inv && typeof inv.qty === 'number') {
+    const thr = (globalConfig[itemName] || {}).low_threshold || 3;
+    if (inv.qty <= 0) return 'low';
+    if (inv.qty <= thr) return 'warn';
+    return 'ok';
+  }
+  return 'ok';
+}
+
+function visiblePvzItems(pvzId){
+  // Union of configured items and actual inventory items, minus hidden ones
+  const pvzCfg = pvzConfigData?.[pvzId] || {};
+  const set = new Set([...Object.keys(globalConfig||{}), ...Object.keys(inventoryData[pvzId]||{})]);
+  return [...set].filter(name => pvzCfg[name]?.enabled !== false);
+}
+function getPvzStatus(pvzId) {
+  let worst = 'ok';
+  for (const name of visiblePvzItems(pvzId)) {
+    const s = getItemStatus(pvzId, name);
+    if (s === 'low') return 'low';
+    if (s === 'warn') worst = 'warn';
+  }
+  return worst;
+}
+
+// ─── RENDER PVZ CARDS ────────────────────────────────────────────────
+function renderPvzCards() {
+  const grid = document.getElementById('pvzGrid');
+  if (!grid) return;
+  const entries = Object.entries(pvzMap);
+  if (!entries.length) {
+    grid.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-title">Загрузка ПВЗ из Firebase…</div><div style="font-size:12px;color:var(--text-3);margin-top:6px">Список появится после первого запуска бота</div></div>';
+    return;
+  }
+  grid.innerHTML = entries.map(([pvzId, info]) => {
+    const pvzName = info.pvz_name || pvzId;
+    const inv = inventoryData[pvzId] || {};
+    const status = getPvzStatus(pvzId);
+    const statusLabel = {ok:'В норме',warn:'Мало',low:'Критично'}[status];
+    const visibleItems = visiblePvzItems(pvzId);
+    const chips = visibleItems.map(name => {
+      const s = getItemStatus(pvzId, name);
+      if (s === 'ok') return '';// don't clutter: only show warn/low
+      const lbl = {warn:'Мало', low:'Нет'}[s];
+      return `<span class="supply-chip ${s}">${name} — ${lbl}</span>`;
+    }).filter(Boolean).join('');
+    const allOk = visibleItems.every(name => getItemStatus(pvzId, name) === 'ok');
+    return `<div class="pvz-card">
+      <div class="pvz-card-header">
+        <div><div class="pvz-name">${pvzName}</div><div class="pvz-id">${pvzId}</div></div>
+        <div class="pvz-status ${status}"><div class="pvz-status-dot"></div>${statusLabel}</div>
+      </div>
+      <div class="pvz-items">${chips||(allOk?'<span style="color:var(--green);font-size:12px">✓ Всё в норме</span>':'<span style="color:var(--text-3);font-size:12px">Нет данных</span>')}</div>
+      <div class="pvz-card-footer">
+        <button class="btn btn-secondary btn-sm" onclick="openEditModal('${pvzId}','${pvzName.replace(/'/g,"\\'")}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Изменить</button>
+        <button class="btn btn-ghost btn-sm" onclick="openPvzConfig('${pvzId}','${pvzName.replace(/'/g,"\\'")}')">Конфиг</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── RENDER PVZ ADMIN LIST ───────────────────────────────────────────
+function renderPvzAdminList() {
+  const container = document.getElementById('pvzAdminList');
+  if (!container) return;
+  const entries = Object.entries(pvzMap);
+  if (!entries.length) { container.innerHTML = '<div style="padding:20px;color:var(--text-3)">Нет данных — запустите бота</div>'; return; }
+  const MKTS = ['ozon','yandex','avito','wb','emex','himchistka'];
+  const MKT_LBL = {ozon:'Ozon',yandex:'Яндекс',avito:'Avito',wb:'WB',emex:'Emex',himchistka:'Химчистка'};
+  container.innerHTML = entries.map(([pvzId, info]) => {
+    const mkts = info.marketplaces || [];
+    const mktChecks = MKTS.map(m=>`<label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;margin-right:8px;cursor:pointer">
+      <input type="checkbox" class="pvzmkt-${pvzId}" value="${m}" ${mkts.includes(m)?'checked':''} style="accent-color:var(--oz-blue)"> ${MKT_LBL[m]}</label>`).join('');
+    return `<div style="padding:16px;border:1px solid var(--border);border-radius:12px;margin-bottom:12px;background:var(--surface-2)">
+      <div style="font-weight:800;margin-bottom:12px;font-size:14px">${info.pvz_name||pvzId} <span style="font-family:monospace;font-weight:400;font-size:11px;color:var(--text-3)">(ключ БД: ${pvzId})</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><div class="cfg-lbl">Название (внутреннее)</div>
+          <input id="pvznm-${pvzId}" value="${info.pvz_name||''}" class="pvz-inp"></div>
+        <div><div class="cfg-lbl">Публичное название</div>
+          <input id="pvzpub-${pvzId}" value="${info.public_name||info.pvz_name||''}" class="pvz-inp"></div>
+        <div><div class="cfg-lbl">Chat ID — botzavhoz (расходники)</div>
+          <input id="pvzchat-${pvzId}" value="${info.chat_peer_id||''}" class="pvz-inp" placeholder="2000000001"></div>
+        <div><div class="cfg-lbl">Chat ID — jobparc (смены)</div>
+          <input id="pvzjob-${pvzId}" value="${info.jobparc_chat_id||info.chat_peer_id||''}" class="pvz-inp" placeholder="2000000001"></div>
+        <div><div class="cfg-lbl">Chat ID — видеобот (камеры)</div>
+          <input id="pvzvideo-${pvzId}" value="${info.video_chat_peer_id||''}" class="pvz-inp" placeholder="2000000001"></div>
+        <div><div class="cfg-lbl">Время открытия</div>
+          <input id="pvzopen-${pvzId}" type="time" value="${info.open_time||'09:00'}" class="pvz-inp"></div>
+        <div><div class="cfg-lbl">Время закрытия</div>
+          <input id="pvzclose-${pvzId}" type="time" value="${info.close_time||'21:00'}" class="pvz-inp"></div>
+        <div><div class="cfg-lbl">Часовой пояс</div>
+          <select id="pvztz-${pvzId}" class="pvz-inp">
+            ${['МСК','МСК+1','МСК+2','МСК+3','МСК+4','МСК+5','МСК+6','МСК+7','МСК+8','МСК+9'].map(tz=>`<option ${(info.timezone||'МСК')===tz?'selected':''}>${tz}</option>`).join('')}
+          </select></div>
+        <div><div class="cfg-lbl">Город (для погоды)</div>
+          <input id="pvzcity-${pvzId}" value="${info.city||''}" class="pvz-inp" placeholder="Нижний Новгород"></div>
+        <div><div class="cfg-lbl">Координаты (шир, долг)</div>
+          <input id="pvzcoord-${pvzId}" value="${(info.lat&&info.lon)?info.lat+', '+info.lon:''}" class="pvz-inp" placeholder="56.3269, 44.0059"></div>
+        <div><div class="cfg-lbl">Опции</div>
+          <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="pvzweather-${pvzId}" ${info.weather_enabled!==false?'checked':''} style="accent-color:var(--oz-blue)"> Показывать погоду</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="pvzphoto-${pvzId}" ${info.photo_reminder!==false?'checked':''} style="accent-color:var(--oz-blue)"> Утреннее напоминание о фото</label>
+          </div></div>
+        <div style="grid-column:1/3"><div class="cfg-lbl">Маркетплейсы и что отслеживать</div>
+          <div style="padding:6px 0">${mktChecks}<label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;margin-right:8px;cursor:pointer" title="Бот ловит «нз 5» / «незамерзайки 5» в чате, как приёмку, и пишет остаток в отчёт о закрытии">
+      <input type="checkbox" id="pvzanti-${pvzId}" ${info.collect_antifreeze?'checked':''} style="accent-color:var(--oz-blue)"> ❄️ Незамерзайки</label></div></div>
+      </div>
+      <div style="font-size:10px;color:var(--text-3);margin-top:10px;margin-bottom:4px">
+        ✅ Форма заполнена из Firebase. Незаполненные поля сохранят прежние значения.
+        Chat ID — видеобот: добавь бота-видеобот в беседу этого ПВЗ, напиши там
+        <code>/chatid_video</code> и вставь число, которое он ответит.
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="savePvzFull('${pvzId}')">💾 Сохранить ПВЗ</button>
+    </div>`;
+  }).join('');
+}
+
+window.savePvzFull = async function(pvzId) {
+  const g = id => document.getElementById(id+'-'+pvzId)?.value;
+  const mkts = Array.from(document.querySelectorAll('.pvzmkt-'+pvzId+':checked')).map(c=>c.value);
+
+  // Защита: сначала читаем СУЩЕСТВУЮЩИЕ данные из Firebase
+  let existing = {};
+  try {
+    const exSnap = await get(ref(fdb, '/supplies/pvz_list/'+pvzId));
+    existing = exSnap.val() || {};
+  } catch(e) { /* если не читается — продолжаем с пустым */ }
+
+  // Helper: берём значение из формы, если пустое — сохраняем старое
+  const fv = (formId, oldKey, fallback) => {
+    const v = g(formId);
+    if (v !== null && v !== undefined && v !== '') return v;
+    return existing[oldKey] ?? fallback;
+  };
+
+  const coordRaw = (g('pvzcoord')||'').split(',').map(x=>parseFloat(x.trim()));
+  const hasCoord = coordRaw.length===2 && !isNaN(coordRaw[0]) && !isNaN(coordRaw[1]);
+
+  const data = {
+    pvz_name:       fv('pvznm', 'pvz_name', pvzId),
+    public_name:    fv('pvzpub', 'public_name', fv('pvznm', 'pvz_name', pvzId)),
+    chat_peer_id:   parseInt(g('pvzchat')) || existing.chat_peer_id || 0,
+    jobparc_chat_id:parseInt(g('pvzjob'))  || existing.jobparc_chat_id || 0,
+    video_chat_peer_id: parseInt(g('pvzvideo')) || existing.video_chat_peer_id || 0,
+    open_time:      fv('pvzopen',  'open_time',  '09:00'),
+    close_time:     fv('pvzclose', 'close_time', '21:00'),
+    timezone:       fv('pvztz',    'timezone',   'МСК'),
+    city:           fv('pvzcity',  'city',       ''),
+    weather_enabled: document.getElementById('pvzweather-'+pvzId)?.checked ?? (existing.weather_enabled ?? true),
+    photo_reminder:  document.getElementById('pvzphoto-'+pvzId)?.checked  ?? (existing.photo_reminder  ?? true),
+    marketplaces:   mkts.length ? mkts : (existing.marketplaces || []),
+    collect_antifreeze: document.getElementById('pvzanti-'+pvzId)?.checked ?? (existing.collect_antifreeze ?? false),
+    // Координаты: только если заполнены, иначе сохраняем старые
+    ...(hasCoord
+      ? {lat: coordRaw[0], lon: coordRaw[1]}
+      : (existing.lat != null ? {lat: existing.lat, lon: existing.lon} : {})
+    ),
+  };
+
+  // Дополнительно: сохраняем ВСЕ неизвестные поля из existing (чтобы ничего не потерять)
+  const merged = {...existing, ...data};
+
+  try {
+    await set(ref(fdb, '/supplies/pvz_list/'+pvzId), merged);
+    Object.assign(pvzMap[pvzId]||(pvzMap[pvzId]={}), merged);
+    showToast('✅ ПВЗ сохранён: '+data.pvz_name);
+  } catch(e) { showToast('Ошибка: '+e.message); }
+};
+
+window.savePvzName = async function(pvzId, name) {
+  const n=name.trim(); if(!n)return;
+  try { await set(ref(fdb,'/supplies/pvz_list/'+pvzId+'/pvz_name'),n);
+    if(pvzMap[pvzId])pvzMap[pvzId].pvz_name=n; showToast('✅ '+n); } catch(e){showToast('Ошибка');}
+};
+window.savePvzCloseTime = async function(pvzId,time){
+  if(!time)return;
+  try{await set(ref(fdb,'/supplies/pvz_list/'+pvzId+'/close_time'),time);
+    if(pvzMap[pvzId])pvzMap[pvzId].close_time=time;showToast('✅ '+time);}catch(e){showToast('Ошибка');}
+};
+window.savePvzChatId = async function(pvzId,chatId){
+  const v=parseInt(chatId)||0; if(!v){showToast('Введите числовой ID');return;}
+  try{await set(ref(fdb,'/supplies/pvz_list/'+pvzId+'/chat_peer_id'),v);
+    if(pvzMap[pvzId])pvzMap[pvzId].chat_peer_id=v;showToast('✅ сохранён');}catch(e){showToast('Ошибка');}
+};
+
+window.saveScheduleToggle = async function(val) {
+  await set(ref(fdb, '/supplies/config/schedule_proposal_enabled'), val);
+  showToast(val ? '✅ Предложение графика включено' : '⛔ Отключено');
+};
+// Load schedule toggle state on init
+get(ref(fdb, '/supplies/config/schedule_proposal_enabled')).then(s => {
+  const el = document.getElementById('schedule-proposal-toggle');
+  if (el) el.checked = s.val() !== false;
+}).catch(() => {});
+
+window.saveVersion = async function() {
+  const v = document.getElementById('app-version-inp')?.value.trim();
+  if (!v) return;
+  await set(ref(fdb, '/supplies/config/app_version'), v);
+  showToast('✅ Версия обновлена: ' + v);
+};
+get(ref(fdb, '/supplies/config/app_version')).then(s => {
+  const el = document.getElementById('app-version-inp');
+  if (el && s.val()) el.value = s.val();
+}).catch(() => {});
+
+window.savePvzName = async function(pvzId, name) {
+  const n = name.trim(); if (!n) return;
+  try {
+    await set(ref(fdb, `/supplies/pvz_list/${pvzId}/pvz_name`), n);
+    showToast('✅ Сохранено: ' + n);
+    // Update local pvzMap
+    if (pvzMap[pvzId]) pvzMap[pvzId].pvz_name = n;
+    pvzListData = pvzMap;
+  } catch(e) { showToast('Ошибка: ' + e.message); }
+};
+
+// ─── RENDER REQUESTS ─────────────────────────────────────────────────
+function renderRequests() {
+  const tbody = document.getElementById('requestsTbody');
+  if (!tbody) return;
+  const entries = Object.entries(requestsData).sort((a,b)=>b[0].localeCompare(a[0]));
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Нет запросов</div></div></td></tr>`;
+    return;
+  }
+  const statusLabel = {pending:'В ожидании',ordered:'Заказано',received:'Получено'};
+  const tagClass    = {pending:'tag-pending',ordered:'tag-ordered',received:'tag-received'};
+  tbody.innerHTML = entries.map(([id, r]) => {
+    const items = Array.isArray(r.items) ? r.items.join(', ') : (r.items||'—');
+    return `<tr>
+      <td><code style="font-size:11px;color:var(--text-3)">${id.slice(-8)}</code></td>
+      <td><strong>${r.pvz_name||r.pvz_id}</strong></td>
+      <td>${r.created_at||'—'}</td>
+      <td style="max-width:200px;font-size:12px">${items}</td>
+      <td><span class="tag ${tagClass[r.status]||'tag-pending'}">${statusLabel[r.status]||r.status}</span></td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="openRequestModal('${id}')">Подробнее</button>
+        ${r.status==='pending'?`<button class="btn btn-primary btn-sm" onclick="markOrdered('${id}')">Заказать</button>`:''}
+        ${r.status==='ordered'?`<button class="btn btn-sm" style="background:var(--green-light);color:var(--green)" onclick="markReceived('${id}')">Принять</button>`:''}
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── RENDER EDIT LOG ─────────────────────────────────────────────────
+function renderEditLog() {
+  const cont = document.getElementById('editLogContainer');
+  if (!cont) return;
+  const entries = Object.entries(editLogData).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,50);
+  if (!entries.length) { cont.innerHTML = '<div class="empty"><div class="empty-icon">📜</div><div class="empty-title">История пуста</div></div>'; return; }
+  // Find today's employees for each PVZ
+  const today = new Date().toLocaleDateString('sv');
+  const ym = today.slice(0,7);
+  // Build employee name cache from assignments
+  cont.innerHTML = entries.map(([ts,log]) => {
+    const changes = Array.isArray(log.changes)
+      ? log.changes.map(ch=>{
+          if(ch.status) return `${ch.name}: ${ch.status==='ok'?'Много':ch.status==='warn'?'Мало':'Нет'}`;
+          return `${ch.qty>0?'+':''}${ch.qty} ${ch.name}`;
+        }).join(', ')
+      : (log.change_text||JSON.stringify(log.changes||{}));
+    const srcMap = {manual:'Вручную',arrival_vk:'ВКонтакте',web_staff:'Сотрудник',
+      received_from_request:'Принято из заявки',web_admin:'Администратор'};
+    const src = srcMap[log.source]||log.source||'';
+    // Format timestamp: DD.MM HH:MM (no seconds, no year)
+    let timeDisplay = '';
+    if(log.timestamp){
+      const parts = log.timestamp.match(/(\d{2})\.(\d{2})\.(\d{4}),?\s+(\d{2}:\d{2})/);
+      if(parts) timeDisplay = `${parts[1]}.${parts[2]} ${parts[4]}`;
+      else timeDisplay = log.timestamp.slice(0,16);
+    } else {
+      timeDisplay = new Date(parseInt(ts)).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    }
+    return `<div class="log-item">
+      <div class="log-dot ${log.source==='manual'?'manual':log.source==='arrival_vk'?'arrival':''}"></div>
+      <div style="flex:1;min-width:0;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;overflow:hidden">
+          <span class="log-pvz" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${log.pvz_name||log.pvz_id}</span>
+          <span style="font-size:11px;color:var(--text-3);flex-shrink:0">${src}</span>
+        </div>
+        <div class="log-text" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${changes||log.free_text||'—'}</div>
+      </div>
+      <div style="flex-shrink:0;font-size:10px;color:var(--text-3);white-space:nowrap;margin-left:8px;min-width:70px;text-align:right">${timeDisplay}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── RENDER GLOBAL CONFIG ────────────────────────────────────────────
+
+// ── SUPPLY PVZ ASSIGNMENT (#2) ─────────────────────────────────────────
+let _supplyPvzName=null;
+window.openSupplyPvz=function(name){
+  _supplyPvzName=name;
+  document.getElementById('supplyPvzTitle').textContent='Где показывать: '+name;
+  const body=document.getElementById('supplyPvzBody');
+  const pvzCfg=pvzConfigData||{};
+  // Each PVZ: enabled unless explicitly disabled for this item
+  body.innerHTML=Object.entries(pvzMap).sort((a,b)=>((a[1].pvz_name||a[0]).localeCompare(b[1].pvz_name||b[0],'ru'))).map(([pid,p])=>{
+    const enabled=(pvzCfg[pid]||{})[name]?.enabled!==false;
+    return `<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer">
+      <input type="checkbox" ${enabled?'checked':''} onchange="toggleSupplyPvz('${pid}',this.checked)" style="width:16px;height:16px;accent-color:var(--oz-blue)">
+      <span style="font-size:13px;font-weight:600">${p.pvz_name||pid}</span>
+    </label>`;
+  }).join('');
+  // Mass toggle buttons
+  document.getElementById('supplyPvzOv').style.display='flex';
+};
+window.toggleSupplyPvz=async function(pvzId,enabled){
+  if(!_supplyPvzName)return;
+  try{
+    await set(ref(fdb,`/supplies/config/pvz/${pvzId}/${_supplyPvzName}/enabled`),enabled);
+  }catch(e){showToast('Ошибка: '+e.message);}
+};
+window.supplyPvzAll=async function(val){
+  if(!_supplyPvzName)return;
+  for(const pid in pvzMap){
+    await set(ref(fdb,`/supplies/config/pvz/${pid}/${_supplyPvzName}/enabled`),val);
+  }
+  showToast(val?'Включено для всех':'Выключено для всех');
+  openSupplyPvz(_supplyPvzName);
+};
+window.closeSupplyPvz=function(){document.getElementById('supplyPvzOv').style.display='none';};
+
+function renderGlobalConfig() {
+  const c = document.getElementById('globalConfigBody');
+  if (!c) return;
+  c.innerHTML = Object.entries(globalConfig).map(([name, cfg]) => {
+    const aliases = (cfg.aliases||[]).map(a=>
+      `<span class="alias-tag">${a}<span class="alias-remove" onclick="removeAlias('${name}','${a}')">×</span></span>`
+    ).join('');
+    return `<div class="supply-config-row">
+      <div><div class="supply-config-name" style="cursor:pointer" title="Нажмите чтобы переименовать" onclick="renameSupply('${name}')">${name} ✏️</div>
+        <div class="aliases-list">${aliases}
+          <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:11px" onclick="addAliasPrompt('${name}')">+ синоним</button>
+        </div></div>
+      <div><label class="form-label">Единица</label>
+        <input class="input input-sm" value="${cfg.unit||'штук'}" onchange="updateCfgField('${name}','unit',this.value)"></div>
+      <div><label class="form-label">Порог (мин.)</label>
+        <input class="input input-sm" type="number" min="0" value="${cfg.low_threshold||3}" onchange="updateCfgField('${name}','low_threshold',+this.value)"></div>
+      <button class="btn btn-ghost btn-sm" onclick="openSupplyPvz(this.dataset.n)" data-n="${name.replace(/"/g,'&quot;')}">🏪 ПВЗ</button>
+      <button class="btn btn-ghost btn-sm" onclick="generateAliases('${name}')">🤖 Синонимы</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteSupply(this.dataset.n)" data-n="${name.replace(/"/g,'&quot;')}">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ─── STATS ───────────────────────────────────────────────────────────
+function updateStats() {
+  const pvzCount = Object.keys(pvzMap).length;
+  let pending = 0, low = 0;
+  Object.values(requestsData).forEach(r=>{ if(r.status==='pending') pending++; });
+  Object.keys(pvzMap).forEach(id => {
+    const s = getPvzStatus(id);
+    if (s==='low'||s==='warn') low++;
+  });
+  el('statPvz', pvzCount); el('statPending', pending); el('statLow', low);
+  const badge = document.querySelector('.nav-badge');
+  if (badge) badge.textContent = pending||'';
+}
+function el(id, val) { const e=document.getElementById(id); if(e) e.textContent=val; }
+
+// ─── EDIT MODAL ──────────────────────────────────────────────────────
+window.openEditModal = function(pvzId, pvzName) {
+  editingPvzId = pvzId;
+  document.getElementById('editModalTitle').textContent = `Остатки: ${pvzName}`;
+  const body = document.getElementById('editModalBody');
+  const items = visiblePvzItems(pvzId);
+  const colors = {ok:'var(--green)',warn:'var(--yellow)',low:'var(--red)'};
+  const labels = {ok:'в норме',warn:'мало',low:'нет'};
+  body.innerHTML = items.map(name => {
+    const s = getItemStatus(pvzId, name);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-weight:600;font-size:13px">${name}</div>
+        <div style="font-size:11px;color:${colors[s]}">${labels[s]}</div>
+      </div>
+      <div style="display:flex;gap:5px">
+        <button onclick="setAdminSupplyStatus('${pvzId}','${name}','ok')" style="padding:5px 10px;border-radius:8px;border:1.5px solid ${s==='ok'?'var(--green)':'var(--border)'};background:${s==='ok'?'var(--green)':'var(--surface)'};color:${s==='ok'?'#fff':'var(--text-2)'};font-size:11px;font-weight:700;cursor:pointer">Много</button>
+        <button onclick="setAdminSupplyStatus('${pvzId}','${name}','warn')" style="padding:5px 10px;border-radius:8px;border:1.5px solid ${s==='warn'?'var(--yellow)':'var(--border)'};background:${s==='warn'?'var(--yellow)':'var(--surface)'};color:${s==='warn'?'#fff':'var(--text-2)'};font-size:11px;font-weight:700;cursor:pointer">Мало</button>
+        <button onclick="setAdminSupplyStatus('${pvzId}','${name}','low')" style="padding:5px 10px;border-radius:8px;border:1.5px solid ${s==='low'?'var(--red)':'var(--border)'};background:${s==='low'?'var(--red)':'var(--surface)'};color:${s==='low'?'#fff':'var(--text-2)'};font-size:11px;font-weight:700;cursor:pointer">Нет</button>
+      </div>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-3);padding:20px;text-align:center">Нет расходников для этого ПВЗ</div>';
+  document.getElementById('editOverlay').classList.add('open');
+};
+
+window.setAdminSupplyStatus = async function(pvzId, name, status) {
+  const unit = (inventoryData[pvzId]?.[name]?.unit) || (globalConfig[name]?.unit) || 'штук';
+  try {
+    await set(ref(fdb, `/supplies/inventory/${pvzId}/${name}`), {
+      status, unit, last_updated: new Date().toLocaleString('ru-RU')
+    });
+    showToast(`${name}: ${({ok:'Много',warn:'Мало',low:'Нет'})[status]}`);
+    openEditModal(pvzId, document.getElementById('editModalTitle').textContent.replace('Остатки: ',''));
+  } catch(e) { showToast('Ошибка: ' + e.message); }
+};
+
+window.saveEdit = function() {
+  // Status buttons save immediately via setAdminSupplyStatus()
+  closeModal('editOverlay');
+};
+
+// ─── PVZ CONFIG MODAL ────────────────────────────────────────────────
+window.openPvzConfig = function(pvzId, pvzName) {
+  editingPvzId = pvzId;
+  document.getElementById('pvzConfigTitle').textContent = `Конфиг: ${pvzName}`;
+  get(ref(fdb, `/supplies/config/pvz/${pvzId}`)).then(snap => {
+    const pvzConfig = snap.val() || {};
+    document.getElementById('pvzConfigBody').innerHTML = Object.keys(globalConfig).map(name => {
+      const cfg = pvzConfig[name] || {};
+      const enabled = cfg.enabled !== false;
+      const thr = cfg.low_threshold || (globalConfig[name]||{}).low_threshold || 3;
+      const nk = name.replace(/\s/g,'_');
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <input type="checkbox" id="pch-${nk}" ${enabled?'checked':''} style="width:16px;height:16px;accent-color:var(--oz-blue)">
+        <label for="pch-${nk}" style="flex:1;font-weight:500;cursor:pointer">${name}</label>
+        <span style="font-size:11px;color:var(--text-3)">мин.</span>
+        <input type="number" id="pthr-${nk}" value="${thr}" min="0" class="input input-sm" style="width:60px">
+      </div>`;
+    }).join('');
+  });
+  document.getElementById('pvzConfigOverlay').classList.add('open');
+};
+
+window.savePvzConfig = async function() {
+  const cfg = {};
+  Object.keys(globalConfig).forEach(name => {
+    const nk = name.replace(/\s/g,'_');
+    const cb = document.getElementById(`pch-${nk}`);
+    const thr = document.getElementById(`pthr-${nk}`);
+    if (cb) cfg[name] = {enabled:cb.checked, low_threshold:parseInt(thr?.value)||3};
+  });
+  await set(ref(fdb, `/supplies/config/pvz/${editingPvzId}`), cfg);
+  closeModal('pvzConfigOverlay');
+  showToast('Конфиг ПВЗ сохранён');
+};
+
+// ─── REQUEST MODAL ───────────────────────────────────────────────────
+window.openRequestModal = function(id) {
+  const r = requestsData[id];
+  if (!r) return;
+  const items = Array.isArray(r.items) ? r.items.filter(i => i != null && i !== undefined) : (r.items ? [String(r.items)] : []);
+  const oq = r.ordered_quantities || {};
+  const statusLabel = {pending:'В ожидании',ordered:'Заказано',received:'Получено'};
+  document.getElementById('requestModalBody').innerHTML = `
+    <div class="form-group"><label class="form-label">ПВЗ</label><div style="font-weight:600">${r.pvz_name||r.pvz_id}</div></div>
+    <div class="form-group"><label class="form-label">Дата</label><div>${r.created_at||'—'}</div></div>
+    <div class="form-group"><label class="form-label">Статус</label><div><span class="tag tag-${r.status||'pending'}">${statusLabel[r.status]||r.status}</span></div></div>
+    <div class="divider"></div>
+    <label class="form-label">Расходники</label>
+    ${items.map(name=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-weight:500">${name}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="rq-${name.replace(/\s/g,'_')}" value="${oq[name]||''}" placeholder="кол-во" min="0" class="input input-sm" style="width:80px">
+        <span style="font-size:11px;color:var(--text-3)">${(globalConfig[name]||{}).unit||'шт'}</span>
+      </div></div>`).join('')}`;
+  document.getElementById('requestModalSave').onclick = () => saveRequestQty(id, items);
+  document.getElementById('requestOverlay').classList.add('open');
+};
+
+window.saveRequestQty = async function(id, items) {
+  const qty = {};
+  items.forEach(name => {
+    const i = document.getElementById(`rq-${name.replace(/\s/g,'_')}`);
+    if (i?.value) qty[name] = parseInt(i.value)||0;
+  });
+  await update(ref(fdb, `/supplies/requests/${id}`), {ordered_quantities:qty, status:'ordered', ordered_at:new Date().toLocaleString('ru-RU')});
+  closeModal('requestOverlay');
+  showToast('Заказ обновлён');
+};
+
+window.markOrdered = async function(id) {
+  await update(ref(fdb, `/supplies/requests/${id}`), {status:'ordered', ordered_at:new Date().toLocaleString('ru-RU')});
+  showToast('Помечено как заказано');
+};
+
+window.markReceived = async function(id) {
+  const r = requestsData[id];
+  await update(ref(fdb, `/supplies/requests/${id}`), {status:'received', received_at:new Date().toLocaleString('ru-RU')});
+  const qty = r.ordered_quantities || {};
+  if (Object.keys(qty).length && r.pvz_id) {
+    const snap = await get(ref(fdb, `/supplies/inventory/${r.pvz_id}`));
+    const inv = snap.val() || {};
+    // Received = set status to 'ok' for each item
+    Object.entries(qty).forEach(([name]) => {
+      const unit = (globalConfig[name]||{}).unit||'штук';
+      inv[name] = {status:'ok', unit, last_updated:new Date().toLocaleString('ru-RU')};
+    });
+    await set(ref(fdb, `/supplies/inventory/${r.pvz_id}`), inv);
+    await set(ref(fdb, `/supplies/edit_log/${Date.now()}`), {
+      pvz_id:r.pvz_id, pvz_name:r.pvz_name||r.pvz_id, source:'received_from_request',
+      changes:Object.entries(qty).map(([n])=>({name:n,status:'ok',unit:(globalConfig[n]||{}).unit||'шт'})),
+      timestamp:new Date().toLocaleString('ru-RU'),
+    });
+  }
+  showToast('Принято на баланс');
+};
+
+// ─── GLOBAL CONFIG ───────────────────────────────────────────────────
+window.updateCfgField = async function(name, field, value) {
+  const cfg = globalConfig[name] || {};
+  cfg[field] = value;
+  globalConfig[name] = cfg;
+  await set(ref(fdb, `/supplies/config/global/${name}`), cfg);
+};
+window.removeAlias = async function(name, alias) {
+  const cfg = globalConfig[name]||{};
+  cfg.aliases = (cfg.aliases||[]).filter(a=>a!==alias);
+  await set(ref(fdb, `/supplies/config/global/${name}`), cfg);
+  showToast('Синоним удалён');
+};
+window.addAliasPrompt = function(name) {
+  const a = prompt(`Синоним для «${name}»:`);
+  if (!a) return;
+  const cfg = globalConfig[name]||{};
+  cfg.aliases = [...(cfg.aliases||[]), a.trim().toLowerCase()];
+  set(ref(fdb, `/supplies/config/global/${name}`), cfg);
+  showToast('Синоним добавлен');
+};
+window.generateAliases = function(name) {
+  const cfg = globalConfig[name]||{};
+  const existing = new Set(cfg.aliases||[]);
+  const n = name;
+  for (let i=1;i<n.length-1;i++) existing.add(n.slice(0,i)+n.slice(i+1));
+  if (n.includes(' ')) existing.add(n.split(' ').map(w=>w[0]).join(''));
+  cfg.aliases = [...existing].filter(v=>v.length>2&&v!==name).slice(0,15);
+  set(ref(fdb, `/supplies/config/global/${name}`), cfg);
+  showToast('Синонимы обновлены');
+};
+
+// ── MARKETPLACE REQUIRED CONFIG ──────────────────────────────────────
+const ALL_MKTS = {ozon:'Ozon', yandex:'Яндекс', avito:'Avito', wb:'WB', emex:'Emex', himchistka:'Химчистка'};
+let mktRequiredData = {};
+function renderMktRequired() {
+  const body = document.getElementById('mktRequiredBody');
+  if (!body) return;
+  body.innerHTML = Object.entries(ALL_MKTS).map(([m, label]) => {
+    const required = mktRequiredData[m] !== false;// default required
+    return `<label style="display:flex;align-items:center;gap:8px;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer;font-size:13px;font-weight:600">
+      <input type="checkbox" ${required?'checked':''} onchange="setMktRequired('${m}', this.checked)" style="accent-color:var(--oz-blue);width:16px;height:16px">
+      ${label} <span style="font-size:11px;color:var(--text-3);font-weight:400">${required?'обязательно':'необязательно'}</span>
+    </label>`;
+  }).join('');
+}
+window.setMktRequired = async function(mkt, required) {
+  try {
+    await set(ref(fdb, `/supplies/config/mkt_required/${mkt}`), required);
+    mktRequiredData[mkt] = required;
+    renderMktRequired();
+    showToast(`${ALL_MKTS[mkt]}: ${required?'обязательно':'необязательно'}`);
+  } catch(e) { showToast('Ошибка: ' + e.message); }
+};
+onValue(ref(fdb, '/supplies/config/mkt_required'), snap => {
+  mktRequiredData = snap.val() || {};
+  renderMktRequired();
+});
+
+window.addSupplyType = function() {
+  const name = prompt('Название нового расходника:');
+  if (!name) return;
+  const unit = prompt('Единица измерения:')||'штук';
+  const thr  = parseInt(prompt('Минимальный порог:')||'3')||3;
+  set(ref(fdb, `/supplies/config/global/${name.trim()}`), {unit, low_threshold:thr, aliases:[]});
+  showToast('Добавлено');
+};
+window.deleteSupply = async function(name) {
+  if (!confirm(`Удалить «${name}»?`)) return;
+  try {
+    await remove(ref(fdb, `/supplies/config/global/${name}`));
+    // Update local state + re-render immediately (don't wait for listener)
+    delete globalConfig[name];
+    renderGlobalConfig();
+    showToast('✅ Удалено: ' + name);
+  } catch(e) {
+    showToast('Ошибка удаления: ' + e.message);
+  }
+}
+
+window.renameSupply = async function(oldName) {
+  const newName = prompt('Новое название расходника:', oldName);
+  if (!newName || newName.trim() === oldName) return;
+  const nn = newName.trim();
+  if (globalConfig[nn]) { showToast('Такой расходник уже есть'); return; }
+  try {
+    // 1. Copy config under new name
+    const cfg = globalConfig[oldName] || {unit:'штук', low_threshold:3, aliases:[]};
+    await set(ref(fdb, `/supplies/config/global/${nn}`), cfg);
+    await remove(ref(fdb, `/supplies/config/global/${oldName}`));
+    // 2. Migrate inventory status across all PVZs
+    const invSnap = await get(ref(fdb, '/supplies/inventory'));
+    const allInv = invSnap.val() || {};
+    for (const pvzId in allInv) {
+      if (allInv[pvzId] && allInv[pvzId][oldName]) {
+        await set(ref(fdb, `/supplies/inventory/${pvzId}/${nn}`), allInv[pvzId][oldName]);
+        await remove(ref(fdb, `/supplies/inventory/${pvzId}/${oldName}`));
+      }
+    }
+    // 3. Migrate per-PVZ config (hidden flags)
+    const cfgSnap = await get(ref(fdb, '/supplies/config/pvz'));
+    const allCfg = cfgSnap.val() || {};
+    for (const pvzId in allCfg) {
+      if (allCfg[pvzId] && allCfg[pvzId][oldName]) {
+        await set(ref(fdb, `/supplies/config/pvz/${pvzId}/${nn}`), allCfg[pvzId][oldName]);
+        await remove(ref(fdb, `/supplies/config/pvz/${pvzId}/${oldName}`));
+      }
+    }
+    delete globalConfig[oldName];
+    globalConfig[nn] = cfg;
+    renderGlobalConfig();
+    showToast(`✅ Переименовано: ${oldName} → ${nn}`);
+  } catch(e) {
+    showToast('Ошибка переименования: ' + e.message);
+  }
+};
+
+// ─── UTILS ───────────────────────────────────────────────────────────
+window.closeModal = function(id) { document.getElementById(id).classList.remove('open'); };
+window.showToast  = function(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+};
+// ─── LOCAL PVZ NOTIFICATIONS ────────────────────────────────────────────────
+let _localNotifCurrentPvz = '';
+
+// Populate PVZ select when pvz list loads
+function populateLnPvzSelect() {
+  const sel = document.getElementById('ln-pvz-select');
+  if (!sel) return;
+  const opts = Object.entries(pvzListData || {})
+    .sort((a,b) => (a[1].pvz_name||'').localeCompare(b[1].pvz_name||'', 'ru'))
+    .map(([id, d]) => `<option value="${id}">${d.pvz_name||id}</option>`).join('');
+  sel.innerHTML = '<option value="">— Выберите ПВЗ —</option>' + opts;
+}
+
+window.loadLocalNotif = async function(pvzId) {
+  _localNotifCurrentPvz = pvzId;
+  const form = document.getElementById('ln-form');
+  if (!pvzId) { if (form) form.style.display = 'none'; return; }
+  if (form) form.style.display = '';
+  try {
+    const snap = await get(ref(fdb, `/supplies/notifications/pvz/${pvzId}`));
+    const n = snap.val() || {};
+    const el = id => document.getElementById(id);
+    if (el('ln-text'))     el('ln-text').value    = n.text    || '';
+    if (el('ln-emoji'))    el('ln-emoji').value   = n.emoji   || '📍';
+    if (el('ln-bg'))       el('ln-bg').value      = n.bg_color|| '#FF5E00';
+    if (el('ln-color'))    el('ln-color').value   = n.text_color||'#ffffff';
+    if (el('ln-fontsize')) el('ln-fontsize').value= n.font_size||13;
+    if (el('ln-timer'))    el('ln-timer').value   = n.auto_dismiss_sec||0;
+    if (el('ln-active'))   el('ln-active').checked= !!n.active;
+    updateLnPreview();
+  } catch(e) { showToast('Ошибка загрузки: '+e.message); }
+};
+
+function updateLnPreview() {
+  const t  = document.getElementById('ln-text')?.value;
+  const e  = document.getElementById('ln-emoji')?.value;
+  const bg = document.getElementById('ln-bg')?.value;
+  const col= document.getElementById('ln-color')?.value;
+  const fs = document.getElementById('ln-fontsize')?.value;
+  const prev = document.getElementById('ln-preview');
+  if (prev) prev.style.background = bg || '#FF5E00';
+  const pico = document.getElementById('ln-pico'), ptxt = document.getElementById('ln-ptxt');
+  if (pico) pico.textContent = e || '📍';
+  if (ptxt) { ptxt.textContent = t || ''; ptxt.style.color = col||'#fff'; ptxt.style.fontSize=(fs||13)+'px'; }
+}
+
+window.saveLocalNotif = async function() {
+  const pvzId = _localNotifCurrentPvz;
+  if (!pvzId) { showToast('Выберите ПВЗ'); return; }
+  const text = document.getElementById('ln-text')?.value.trim();
+  if (!text) { showToast('Введите текст'); return; }
+  await set(ref(fdb, `/supplies/notifications/pvz/${pvzId}`), {
+    text,
+    ts: Date.now(),
+    emoji:           document.getElementById('ln-emoji')?.value    || '📍',
+    bg_color:        document.getElementById('ln-bg')?.value       || '#FF5E00',
+    text_color:      document.getElementById('ln-color')?.value    || '#ffffff',
+    font_size:       parseInt(document.getElementById('ln-fontsize')?.value) || 13,
+    auto_dismiss_sec:parseInt(document.getElementById('ln-timer')?.value)    || 0,
+    active:          true,
+    updated_at:      new Date().toLocaleString('ru-RU'),
+  });
+  showToast('✅ Локальное уведомление сохранено');
+};
+
+window.clearLocalNotif = async function() {
+  const pvzId = _localNotifCurrentPvz;
+  if (!pvzId) return;
+  await set(ref(fdb, `/supplies/notifications/pvz/${pvzId}`), { active: false, text: '' });
+  showToast('Локальное уведомление деактивировано');
+};
+// ─── END LOCAL PVZ NOTIFICATIONS ────────────────────────────────────────────
+
+// ─── GENERAL NOTIFICATIONS ─────────────────────────────────────────────────
+let genNotifData = {};
+onValue(ref(fdb, '/supplies/notifications/general'), snap => {
+  genNotifData = snap.val() || {};
+  const txt = document.getElementById('gn-text');
+  const emo = document.getElementById('gn-emoji');
+  const timer = document.getElementById('gn-timer');
+  const active = document.getElementById('gn-active');
+  if (txt) txt.value = genNotifData.text || '';
+  if (emo) emo.value = genNotifData.emoji || '📢';
+  if (timer) timer.value = genNotifData.auto_dismiss_sec || 0;
+  if (active) active.checked = !!genNotifData.active;
+  updateGenNotifPreview();
+});
+['gn-text','gn-emoji'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateGenNotifPreview);
+});
+function updateGenNotifPreview() {
+  const t=document.getElementById('gn-text')?.value;
+  const e=document.getElementById('gn-emoji')?.value;
+  const bg=document.getElementById('gn-bg')?.value;
+  const col=document.getElementById('gn-color')?.value;
+  const fs=document.getElementById('gn-fontsize')?.value;
+  const inner=document.getElementById('gn-preview-inner');
+  const pico=document.getElementById('gn-pico'),ptxt=document.getElementById('gn-ptxt');
+  if(inner){inner.style.background=bg||'linear-gradient(135deg,#005BFF,#7C3AED)';inner.style.color=col||'#fff';}
+  if(pico) pico.textContent=e||'📢';
+  if(ptxt){ptxt.textContent=t||'';ptxt.style.fontSize=(fs||13)+'px';}
+}
+window.saveGenNotif = async function() {
+  const text = document.getElementById('gn-text')?.value.trim();
+  if (!text) { showToast('Введите текст уведомления'); return; }
+  await set(ref(fdb, '/supplies/notifications/general'), {
+    text,
+    ts: Date.now(),
+    emoji:           document.getElementById('gn-emoji')?.value    || '📢',
+    bg_color:        document.getElementById('gn-bg')?.value       || 'linear-gradient(135deg,#005BFF,#7C3AED)',
+    text_color:      document.getElementById('gn-color')?.value    || '#ffffff',
+    font_size:       parseInt(document.getElementById('gn-fontsize')?.value) || 13,
+    padding:         '12px 18px',
+    auto_dismiss_sec:parseInt(document.getElementById('gn-timer')?.value)    || 0,
+    active:          document.getElementById('gn-active')?.checked  || false,
+    updated_at:      new Date().toLocaleString('ru-RU'),
+  });
+  showToast('✅ Уведомление сохранено');
+};
+window.clearGenNotif = async function() {
+  await set(ref(fdb, '/supplies/notifications/general'), { active: false, text: '', emoji: '📢' });
+  showToast('Уведомление деактивировано');
+};
+// ─── END GENERAL NOTIFICATIONS ──────────────────────────────────────────────
+
+// ─── BANNERS ───────────────────────────────────────────────────────────────
+let bannersData = {};
+// ── EMPLOYEE CACHE ──
+let _empCache=null;
+async function getEmployees(){
+  if(_empCache)return _empCache;
+  const snap=await fdb.ref('/appData/employees').once('value');
+  const raw=snap.val();
+  _empCache=Array.isArray(raw)?raw:Object.values(raw||{});
+  return _empCache;
+}
+// ОПТИМИЗАЦИЯ: баннеры грузим один раз — realtime не нужен для админки
+get(ref(fdb, '/supplies/banners')).then(snap => {
+  bannersData = snap.val() || {};
+  renderBannersList();
+});
+
+function renderBannersList() {
+  const c = document.getElementById('bannersBody');
+  if (!c) return;
+  const entries = Object.entries(bannersData).sort((a,b)=>(a[1].order||0)-(b[1].order||0));
+  if (!entries.length) {
+    c.innerHTML = '<div style="color:var(--text-3)">Нет баннеров. Нажмите «+ Добавить баннер».</div>';
+    return;
+  }
+  c.innerHTML = entries.map(([id, b]) => `
+    <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)">
+      <div style="width:60px;height:60px;border-radius:12px;background:${b.bg||'#ccc'};display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">${b.emoji||'🏪'}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">${b.title||'—'}</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:2px">${b.subtitle||''}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px">
+          Порядок: ${b.order||0} · ${b.active!==false?'✅ Активен':'⛔ Скрыт'}
+          ${(b.pvz_ids||[]).length?`<span style="background:rgba(0,91,255,.1);color:#005BFF;padding:1px 6px;border-radius:5px;margin-left:4px">📍 ${b.pvz_ids.length} ПВЗ</span>`:'<span style="opacity:.5;margin-left:4px">Все ПВЗ</span>'}
+          ${(b.categories||[]).length?`<span style="background:rgba(0,184,113,.1);color:#00B871;padding:1px 6px;border-radius:5px;margin-left:4px">${b.categories.join(', ')}</span>`:'<span style="opacity:.5;margin-left:4px">Все маркетплейсы</span>'}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="editBanner('${id}')">Изменить</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteBanner('${id}')">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+window.addBanner = function() { openBannerEditor(null); };
+window.editBanner = function(id) { openBannerEditor(id, bannersData[id]); };
+window.deleteBanner = function(id) {
+  if (!confirm('Удалить баннер?')) return;
+  remove(ref(fdb, `/supplies/banners/${id}`));
+  showToast('Баннер удалён');
+};
+
+function openBannerEditor(id, existing) {
+  const b = existing || {};
+  const modal = document.createElement('div');
+  modal.className = 'overlay open';
+  modal.innerHTML = `<div class="modal" style="max-height:92vh">
+    <div class="modal-header" style="padding:20px 24px 0">
+      <div class="modal-title">${id ? 'Изменить' : 'Добавить'} баннер</div>
+      <button class="modal-close" onclick="this.closest('.overlay').remove()">×</button>
+    </div>
+    <div class="modal-body" style="padding:16px 24px">
+      <div class="form-group">
+        <label class="form-label">Изображение (URL)</label>
+        <input class="input" id="be-img-url" value="${b.image_url||''}" placeholder="https://..." oninput="updateBannerPreview()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Подпись / текст баннера (отображается при нажатии)</label>
+        <textarea class="input" id="be-caption" rows="3" placeholder="Новости, акции, важная информация…" style="resize:vertical">${b.caption||''}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Или загрузите файл</label>
+        <input type="file" id="be-img-file" accept="image/*" style="padding:6px;border:1px solid var(--border);border-radius:8px;width:100%;cursor:pointer" onchange="uploadBannerFile(this)">
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px">JPG, PNG, WebP. Рекомендуется квадратный формат 1:1</div>
+      </div>
+      <div id="be-img-preview" style="aspect-ratio:1/1;border-radius:12px;overflow:hidden;background:var(--surface-2);margin-bottom:14px;max-height:220px;display:${b.image_url?'block':'none'}">
+        <img id="be-img-preview-img" src="${b.image_url||''}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'">
+      </div>
+      <div style="height:1px;background:var(--border);margin:4px 0 14px"></div>
+      <div class="form-group"><label class="form-label">Порядок отображения</label><input class="input" id="be-order" type="number" value="${b.order||0}" style="max-width:100px"></div>
+      <div class="form-group">
+        <label class="form-label">📍 В каких ПВЗ показывать (ничего не выбрано = во всех)</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;padding:4px 10px" onclick="bannerSelectByMkt('ozon')">+ Ozon</button>
+          <button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;padding:4px 10px" onclick="bannerSelectByMkt('yandex')">+ Яндекс</button>
+          <button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;padding:4px 10px" onclick="bannerSelectByMkt('avito')">+ Avito</button>
+          <button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;padding:4px 10px" onclick="bannerSelectByMkt('wb')">+ WB</button>
+          <button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;padding:4px 10px;margin-left:auto" onclick="bannerSelectAll(true)">Все</button>
+          <button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;padding:4px 10px" onclick="bannerSelectAll(false)">Снять</button>
+        </div>
+        <div id="be-pvz-list" style="display:flex;flex-wrap:wrap;gap:6px;max-height:220px;overflow-y:auto;padding:2px"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+        <input type="checkbox" id="be-active" ${b.active!==false?'checked':''} style="width:16px;height:16px;accent-color:var(--oz-blue)">
+        <label for="be-active" style="font-size:13px">Активен (показывать сотрудникам)</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="this.closest('.overlay').remove()">Отмена</button>
+      <button class="btn btn-primary" id="be-save-btn" onclick="saveBannerEditor('${id||''}')">Сохранить</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  // Populate PVZ checkboxes — use pvzMap (alias of pvzListData)
+  const pvzListEl = modal.querySelector('#be-pvz-list');
+  const pvzSource = pvzMap || pvzListData || {};
+  if (pvzListEl && Object.keys(pvzSource).length) {
+    Object.entries(pvzSource).forEach(([id, d]) => {
+      const checked = (b.pvz_ids || []).includes(id);
+      const mkts = (d.marketplaces||[]).join(',');
+      const lbl = document.createElement('label');
+      lbl.style.cssText = 'display:flex;align-items:center;gap:5px;font-size:12px;padding:4px 9px;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:var(--surface-2)';
+      lbl.innerHTML = `<input type="checkbox" class="be-pvz" value="${id}" data-mkts="${mkts}" ${checked?'checked':''} style="accent-color:var(--oz-blue)"> ${d.pvz_name||id}`;
+      pvzListEl.appendChild(lbl);
+    });
+  } else if (pvzListEl) {
+    pvzListEl.innerHTML = '<div style="color:var(--text-3);font-size:12px">ПВЗ не загружены — запустите бота</div>';
+  }
+}
+
+window.updateBannerPreview = function() {
+  const url = document.getElementById('be-img-url')?.value.trim();
+  const prev = document.getElementById('be-img-preview');
+  const img = document.getElementById('be-img-preview-img');
+  if (url && prev && img) {
+    prev.style.display = 'block';
+    img.src = url;
+    img.onerror = () => { prev.style.display = 'none'; };
+  }
+};
+
+window.uploadBannerFile = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const btn = document.getElementById('be-save-btn');
+  if (btn) { btn.textContent = 'Загрузка в Cloudinary…'; btn.disabled = true; }
+  try {
+    // Сжимаем до 1200px и загружаем в Cloudinary
+    const compressed = await compressImage(file, 1200, 0.88);
+    const url = await uploadToCloudinary(compressed, 'kozonko/banners');
+    applyUploadedImage(url, btn);
+    showToast('✅ Изображение загружено в Cloudinary');
+  } catch(e) {
+    showToast('❌ Ошибка загрузки: ' + e.message);
+    if (btn) { btn.textContent = 'Сохранить'; btn.disabled = false; }
+  }
+};
+
+function applyUploadedImage(url, btn) {
+  const urlInp = document.getElementById('be-img-url');
+  const prev = document.getElementById('be-img-preview');
+  const img = document.getElementById('be-img-preview-img');
+  if (urlInp) urlInp.value = url;
+  if (prev)   prev.style.display = 'block';
+  if (img)    img.src = url;
+  if (btn)    { btn.textContent = 'Сохранить'; btn.disabled = false; }
+}
+
+window.bannerSelectByMkt = function(mkt) {
+  document.querySelectorAll('#be-pvz-list .be-pvz').forEach(cb => {
+    const mkts = (cb.dataset.mkts||'').split(',');
+    if (mkts.includes(mkt)) cb.checked = true;
+  });
+};
+window.bannerSelectAll = function(val) {
+  document.querySelectorAll('#be-pvz-list .be-pvz').forEach(cb => cb.checked = val);
+};
+
+window.saveBannerEditor = async function(id) {
+  const imageUrl = document.getElementById('be-img-url')?.value.trim();
+  const order    = parseInt(document.getElementById('be-order')?.value)||0;
+  const active   = document.getElementById('be-active')?.checked !== false;
+  if (!imageUrl) { showToast('Добавьте изображение'); return; }
+  // Collect PVZ selections
+  const pvzIds = Array.from(document.querySelectorAll('.be-pvz:checked')).map(el => el.value);
+  // Collect category selections
+  const categories = Array.from(document.querySelectorAll('.be-cat:checked')).map(el => el.value);
+  const bannerId = id || `banner_${Date.now()}`;
+  const caption = document.getElementById('be-caption')?.value.trim() || '';
+  await set(ref(fdb, `/supplies/banners/${bannerId}`), {
+    image_url: imageUrl, order, active,
+    pvz_ids: pvzIds,
+    categories: categories,
+    caption
+  });
+  document.querySelector('.overlay.open')?.remove();
+  showToast('Баннер сохранён');
+};
+// ─── END BANNERS ───────────────────────────────────────────────────────────
+
+// ─── CAMERAS ADMIN ───────────────────────────────────────────────────────────
+async function renderCamAdminList() {
+  const el = document.getElementById('camAdminList'); if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-3)"><div style="font-size:32px;margin-bottom:8px">⏳</div>Загрузка…</div>';
+  let pvzData = pvzMap || {};
+  if (!Object.keys(pvzData).length) {
+    try { const snap = await get(ref(fdb, '/supplies/pvz_list')); pvzData = snap.val() || {}; pvzMap = pvzData; pvzListData = pvzData; } catch(e) {}
+  }
+  const pvzIds = Object.keys(pvzData);
+  if (!pvzIds.length) { el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-3)">📡 ПВЗ не найдены — запустите supplies_bot.py</div>'; return; }
+  // Load all camera data
+  let allCams = {};
+  try { const cs = await get(ref(fdb, '/supplies/cameras')); allCams = cs.val() || {}; } catch(e) {}
+  el.innerHTML = pvzIds.map(pvzId => {
+    const pvzName = (pvzData[pvzId] || {}).pvz_name || pvzId;
+    const cams = allCams[pvzId] || {};
+    const camKeys = Object.keys(cams).filter(k=>k.startsWith('c')).sort();
+    const count = camKeys.length || 1;
+    return `<div class="config-section" style="margin-bottom:12px">
+      <div class="config-section-header" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleCamSpoiler('${pvzId}')">
+        <div class="config-section-title">📍 ${pvzName} <span style="font-size:11px;color:var(--text-3);font-weight:400">(${count} камер)</span></div>
+        <span id="cam-spoiler-arrow-${pvzId}" style="font-size:14px;transition:transform .2s">▼</span>
+      </div>
+      <div class="config-body" id="cam-body-${pvzId}" style="display:none">
+        <div id="cam-list-${pvzId}"></div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="addCamera('${pvzId}')">+ Добавить камеру</button>
+      </div>
+    </div>`;
+  }).join('');
+  // Render each PVZ's cameras
+  pvzIds.forEach(pvzId => renderCamerasForPvz(pvzId, allCams[pvzId] || {}));
+}
+
+window.toggleCamSpoiler = function(pvzId) {
+  const body = document.getElementById('cam-body-'+pvzId);
+  const arrow = document.getElementById('cam-spoiler-arrow-'+pvzId);
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (arrow) arrow.style.transform = open ? 'rotate(-90deg)' : 'rotate(0deg)';
+};
+
+function renderCamerasForPvz(pvzId, cams) {
+  const wrap = document.getElementById('cam-list-'+pvzId);
+  if (!wrap) return;
+  let camKeys = Object.keys(cams).filter(k=>k.startsWith('c')).sort();
+  if (!camKeys.length) camKeys = ['c1', 'c2']; // default 2
+  wrap.innerHTML = camKeys.map(ck => {
+    const cam = cams[ck] || {};
+    return `<div style="margin-bottom:14px;padding:14px;background:var(--surface-2);border-radius:12px;border:1px solid var(--border)" data-cam="${ck}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-weight:700;font-size:13px">📹 ${cam.name || ck.toUpperCase()}</div>
+        <button class="btn btn-danger btn-sm" style="padding:2px 8px;font-size:11px" onclick="deleteCamera('${pvzId}','${ck}')">✕ удалить</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label class="form-label">Название</label>
+          <input class="input" id="cam-name-${pvzId}-${ck}" value="${cam.name||''}" placeholder="Камера" oninput="saveCamField('${pvzId}','${ck}','name',this.value)"></div>
+        <div><label class="form-label">Зона охвата</label>
+          <input class="input" id="cam-zone-${pvzId}-${ck}" value="${cam.zone||''}" placeholder="Вход" oninput="saveCamField('${pvzId}','${ck}','zone',this.value)"></div>
+      </div>
+      <div><label class="form-label">📡 Ссылка на трансляцию (embed URL)</label>
+        <input class="input" id="cam-stream-${pvzId}-${ck}" value="${cam.stream||''}" placeholder="https://ru.cloud.trassir.com/embed/КОД" oninput="saveCamField('${pvzId}','${ck}','stream',this.value);updateCamPreview('${pvzId}','${ck}')">
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px">Trassir: https://ru.cloud.trassir.com/embed/КОД · Ростелеком: https://lk-b2b.camera.rt.ru/sl/КОД</div>
+      </div>
+      <div style="margin-top:8px"><div class="cfg-lbl">UID в ЛК Ростелеком (для видеобота)</div>
+        <input class="input" id="cam-rtuid-${pvzId}-${ck}" value="${cam.rt_uid||''}" placeholder="96479c84-6cc4-412f-a764-16d0b07a00ed" oninput="saveCamField('${pvzId}','${ck}','rt_uid',this.value)">
+        <div style="font-size:10px;color:var(--text-3);margin-top:4px">Бери из справочника cameras_rt_reference.md или из адреса lk-b2b.camera.rt.ru/main/camera/&lt;uid&gt;</div>
+      </div>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="cam-isdefault-${pvzId}-${ck}" ${cam.is_default?'checked':''} onchange="saveCamIsDefault('${pvzId}','${ck}',this.checked)">
+        <label for="cam-isdefault-${pvzId}-${ck}" style="font-size:12px;cursor:pointer">⭐ Камера по умолчанию (видеобот присылает её, если сотрудник не указал зону)</label>
+      </div>
+      <div id="cam-preview-${pvzId}-${ck}" style="display:${cam.stream?'block':'none'};margin-top:10px;border-radius:10px;overflow:hidden;aspect-ratio:16/9;background:#000;max-width:360px">
+        ${cam.stream?`<iframe src="${cam.stream}" style="width:100%;height:100%;border:0" allowfullscreen></iframe>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.addCamera = async function(pvzId) {
+  const cs = await get(ref(fdb, '/supplies/cameras/'+pvzId));
+  const cams = cs.val() || {};
+  const nums = Object.keys(cams).filter(k=>k.startsWith('c')).map(k=>parseInt(k.slice(1))||0);
+  const next = (nums.length?Math.max(...nums):0) + 1;
+  await set(ref(fdb, `/supplies/cameras/${pvzId}/c${next}`), {name:'Камера '+next, zone:'', stream:''});
+  renderCamAdminList();
+};
+
+window.deleteCamera = async function(pvzId, ck) {
+  if (!confirm('Удалить камеру?')) return;
+  await remove(ref(fdb, `/supplies/cameras/${pvzId}/${ck}`));
+  renderCamAdminList();
+};
+
+window.saveCamField = async function(pvzId, ck, field, value) {
+  await set(ref(fdb, `/supplies/cameras/${pvzId}/${ck}/${field}`), value);
+};
+
+window.saveCamIsDefault = async function(pvzId, ck, checked) {
+  // Дефолтная камера (видеобот присылает её, если в сообщении не указана
+  // зона) должна быть ровно одна на ПВЗ - при включении галочки на одной
+  // камере снимаем её со всех остальных камер этого ПВЗ.
+  const cs = await get(ref(fdb, '/supplies/cameras/'+pvzId));
+  const cams = cs.val() || {};
+  for (const otherCk of Object.keys(cams)) {
+    await set(ref(fdb, `/supplies/cameras/${pvzId}/${otherCk}/is_default`), otherCk === ck ? checked : false);
+  }
+  renderCamAdminList();
+};
+
+window.updateCamPreview = function(pvzId, ck) {
+  const url = document.getElementById(`cam-stream-${pvzId}-${ck}`)?.value.trim();
+  const prev = document.getElementById(`cam-preview-${pvzId}-${ck}`);
+  if (!prev) return;
+  if (url) { prev.style.display='block'; prev.innerHTML=`<iframe src="${url}" style="width:100%;height:100%;border:0" allowfullscreen></iframe>`; }
+  else { prev.style.display='none'; prev.innerHTML=''; }
+};
+
+function updateCamPhotoPreview(pvzId, n, src) {
+  const url = src || document.getElementById(`cam-photo-url-${pvzId}-${n}`)?.value;
+  const wrap = document.getElementById(`cam-preview-${pvzId}-${n}`);
+  const img  = document.getElementById(`cam-preview-img-${pvzId}-${n}`);
+  if (wrap && img && url) { wrap.style.display = ''; img.src = url; } else if (wrap) wrap.style.display = 'none';
+}
+
+window.saveCamField = function(pvzId, camId, field, value) {
+  set(ref(fdb, `/supplies/cameras/${pvzId}/${camId}/${field}`), value);
+};
+
+window.uploadCamPhoto = async function(pvzId, camId, n, input) {
+  const file = input.files[0]; if (!file) return;
+  try {
+    const compressed = await compressImage(file, 800, 0.82);
+    const url = await uploadToCloudinary(compressed, `kozonko/cameras/${pvzId}`);
+    const urlEl = document.getElementById(`cam-photo-url-${pvzId}-${n}`);
+    if (urlEl) urlEl.value = url;
+    saveCamField(pvzId, camId, 'photo', url);
+    updateCamPhotoPreview(pvzId, n, url);
+    showToast('✅ Фото камеры загружено');
+  } catch(e) {
+    showToast('❌ Ошибка загрузки: ' + e.message);
+  }
+};
+// ─── END CAMERAS ADMIN ───────────────────────────────────────────────────────
+
+
+// ─── MARKETPLACE LOGOS ──────────────────────────────────────────────────────
+let _mktLogosCache=null;
+async function loadMktLogos() {
+  if(_mktLogosCache){
+    Object.entries(_mktLogosCache).forEach(([m,url])=>updateMktLogoPreview(m,url));
+    // Also fill url inputs
+    ['ozon','wb','yandex','avito'].forEach(m=>{const el=document.getElementById('mkt-logo-url-'+m);if(el&&_mktLogosCache[m])el.value=_mktLogosCache[m];});
+    return;
+  }
+  const snap = await get(ref(fdb, '/supplies/marketplace_logos'));
+  const logos = snap.val() || {};
+  _mktLogosCache=logos;
+  ['ozon','yandex','avito','wb'].forEach(m => {
+    const url = logos[m];
+    const urlEl = document.getElementById(`mkt-logo-url-${m}`);
+    if (urlEl && url) urlEl.value = url;
+    updateMktLogoPreview(m, url);
+  });
+}
+function updateMktLogoPreview(m, src) {
+  const prev = document.getElementById(`mkt-logo-preview-${m}`);
+  if (!prev) return;
+  if (src) prev.innerHTML = `<img src="${src}" style="width:100%;height:100%;object-fit:contain">`;
+}
+window.saveMktLogo = async function(m) {
+  const url = document.getElementById(`mkt-logo-url-${m}`)?.value.trim();
+  if (!url) return;
+  await set(ref(fdb, `/supplies/marketplace_logos/${m}`), url);
+  updateMktLogoPreview(m, url);
+  showToast(`✅ Логотип ${m} сохранён`);
+};
+window.uploadMktLogo = async function(m, input) {
+  const file = input.files[0]; if (!file) return;
+  try {
+    // Маленький размер для логотипов (128px)
+    const compressed = await compressImage(file, 128, 0.9);
+    const url = await uploadToCloudinary(compressed, 'kozonko/logos');
+    document.getElementById(`mkt-logo-url-${m}`).value = url;
+    await saveMktLogo(m);
+    showToast(`✅ Логотип ${m} загружен`);
+  } catch(e) {
+    showToast('❌ Ошибка: ' + e.message);
+  }
+};
+
+
+// ── BONUSES / SHIFT MODIFIER (#1) ──────────────────────────────────────
+let _bonusEmployees=[], _bonusTabs={};
+function loadBonusData(){
+  // Load employees + all tabs to compute shifts per PVZ
+  Promise.all([
+    getEmployees(),
+    get(ref(fdb,'/appData/tabs'))
+  ]).then(([empsArr,tSnap])=>{
+    // getEmployees() возвращает уже массив, не snapshot
+    _bonusEmployees=(Array.isArray(empsArr)?empsArr.map((e,i)=>({...e,_idx:i})):Object.entries(empsArr||{}).map(([k,v])=>({...v,_idx:k}))).filter(e=>e&&!e.hidden);
+    _bonusTabs=tSnap.val()||{};
+    renderBonuses();
+  });
+}
+function computeEmpPvz(empId){
+  // Same logic as staff LK: one shift per calendar date, only dates <= today
+  const today=new Date().toISOString().slice(0,10);
+  const counts={};  // pvzId -> shift count
+  const seen=new Set(); // unique dates across all PVZs
+  for(const tid in _bonusTabs){
+    const md=_bonusTabs[tid].monthData||{};
+    for(const ym in md){
+      const asgns=md[ym].assignments||{};
+      for(const date in asgns){
+        if(date<=today&&asgns[date]?.employeeId===empId){
+          counts[tid]=(counts[tid]||0)+1;
+          seen.add(date); // для подсчёта уникальных дней
+        }
+      }
+    }
+  }
+  let primary=null,max=0;
+  for(const pid in counts){if(counts[pid]>max){max=counts[pid];primary=pid;}}
+  // total = unique calendar days (не сумма по ПВЗ — чтобы не задваивать)
+  return {counts,primary,total:seen.size};
+}
+window.renderBonuses=function(){
+  const q=(document.getElementById('bonusSearch')?.value||'').toLowerCase();
+  const body=document.getElementById('bonusesBody');
+  if(!body)return;
+  // Group employees by primary PVZ
+  const pvzNames={};
+  for(const pid in pvzMap)pvzNames[pid]=(pvzMap[pid]||{}).pvz_name||pid;
+  const groups={}, noPvz=[];
+  _bonusEmployees.filter(e=>(e.fullName||e.name||'').toLowerCase().includes(q)).forEach(e=>{
+    const info=computeEmpPvz(e.id);
+    e._shiftInfo=info;
+    if(info.primary){(groups[info.primary]=groups[info.primary]||[]).push(e);}
+    else noPvz.push(e);
+  });
+  let html='';
+  const renderEmp=e=>{
+    const calc=e._shiftInfo.total;
+    const adj=e.manualShiftAdjustment||0;
+    const reason=e.adjustReason||'';
+    const init=(e.fullName||e.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2);
+    const avHtml=e.avatarUrl
+      ?`<img src="${e.avatarUrl}" style="width:40px;height:40px;border-radius:50%;object-fit:cover">`
+      :`<div style="width:40px;height:40px;border-radius:50%;background:${e.color||'#2563EB'};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">${init}</div>`;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;flex-wrap:wrap">
+      ${avHtml}
+      <div style="flex:1;min-width:140px">
+        <div style="font-weight:700;font-size:13px">${e.fullName||e.name||'Сотрудник'}</div>
+        <div style="font-size:11px;color:var(--text-3)">Отработано: ${calc} · С модификатором: <b>${calc+adj}</b></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:10px;color:var(--text-3);margin:0">Модификатор</label>
+        <input type="number" id="adj-${e._idx}" value="${adj}" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;text-align:center">
+      </div>
+      <input type="text" id="reason-${e._idx}" value="${(reason||'').replace(/"/g,'&quot;')}" placeholder="За что (причина)" style="flex:1;min-width:160px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;cursor:pointer" title="Если выключено — раздел премий не виден сотруднику в ЛК">
+        <input type="checkbox" id="bonusen-${e._idx}" ${e.bonuses_enabled!==false?'checked':''} style="accent-color:var(--oz-blue);width:14px;height:14px">
+        <span>Активен</span>
+      </label>
+      <button class="btn btn-primary btn-sm" onclick="saveBonus('${e._idx}','${e.id}')">Сохранить</button>
+    </div>`;
+  };
+  const sortedPvz=Object.keys(groups).sort((a,b)=>(pvzNames[a]||a).localeCompare(pvzNames[b]||b,'ru'));
+  for(const pid of sortedPvz){
+    html+=`<div style="margin:18px 0 10px;font-weight:800;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px">
+      🏪 ${pvzNames[pid]||pid} <span style="font-size:11px;color:var(--text-3);font-weight:500">(${groups[pid].length})</span></div>`;
+    html+=groups[pid].sort((a,b)=>b._shiftInfo.total-a._shiftInfo.total).map(renderEmp).join('');
+  }
+  if(noPvz.length){
+    html+=`<div style="margin:18px 0 10px;font-weight:800;font-size:14px;color:var(--text-3)">❓ Без привязки к ПВЗ <span style="font-size:11px;font-weight:500">(${noPvz.length})</span></div>`;
+    html+=noPvz.map(renderEmp).join('');
+  }
+  body.innerHTML=html||'<div style="color:var(--text-3);padding:20px;text-align:center">Сотрудники не найдены</div>';
+};
+window.saveBonus=async function(idx,empId){
+  const adj=parseInt(document.getElementById('adj-'+idx).value)||0;
+  const reason=document.getElementById('reason-'+idx).value.trim();
+  try{
+    const enabled=document.getElementById('bonusen-'+idx)?.checked!==false;
+    await update(ref(fdb,`/appData/employees/${idx}`),{manualShiftAdjustment:adj,adjustReason:reason,bonuses_enabled:enabled});
+    // Update local
+    const e=_bonusEmployees.find(x=>String(x._idx)===String(idx));
+    if(e){e.manualShiftAdjustment=adj;e.adjustReason=reason;}
+    showToast('✅ Сохранено');
+    renderBonuses();
+  }catch(e){showToast('Ошибка: '+e.message);}
+};
+
+
+// ── PROCUREMENT / HISTORY OF PURCHASES (#4) ────────────────────────────────
+let _procPvzId = null;
+const SUPPLY_ICONS = {
+  'туалетная бумага':'🧻','маркеры':'✏️','тряпки':'🧹','перчатки':'🧤',
+  'мусорные пакеты':'🗑️','скотч':'📦','ручки':'🖊️','антисептик':'🧴',
+  'чистящие полотенца для рук':'🧻','бумага а4':'📄','незамерзайка':'❄️',
+};
+
+function loadProcurement(){
+  const tabs=document.getElementById('procurementTabs');
+  const sorted=Object.entries(pvzMap).sort((a,b)=>(a[1].pvz_name||a[0]).localeCompare(b[1].pvz_name||b[0],'ru'));
+  tabs.innerHTML=sorted.map(([id,p])=>`<button class="btn btn-ghost btn-sm" id="ptab-${id}" onclick="selectProcPvz('${id}')" style="font-size:12px">${p.pvz_name||id}</button>`).join('');
+  if(sorted.length){selectProcPvz(sorted[0][0]);}
+}
+window.selectProcPvz=function(id){
+  _procPvzId=id;
+  document.querySelectorAll('[id^="ptab-"]').forEach(b=>b.classList.toggle('active',b.id==='ptab-'+id));
+  renderProcurementList(id);
+};
+function renderProcurementList(pvzId){
+  const body=document.getElementById('procurementBody');
+  body.innerHTML='<div class="loading">Загрузка…</div>';
+  get(ref(fdb,`/supplies/procurement/${pvzId}`)).then(snap=>{
+    const items=snap.val()||{};
+    const sorted=Object.entries(items).sort((a,b)=>b[1].created_at-a[1].created_at);
+    const today=new Date().toISOString().slice(0,10);
+    let html=`
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px">
+        <div style="font-weight:800;font-size:14px;margin-bottom:14px">➕ Новая закупка</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;flex-wrap:wrap">
+          <div>
+            <div class="cfg-lbl">Расходник</div>
+            <select id="proc-item-sel" class="input" style="width:100%;font-size:13px" onchange="document.getElementById('proc-item-txt').style.display=this.value==='__custom__'?'':'none'">
+              <option value="">— Выберите или введите ниже —</option>
+              ${Object.keys(globalConfig||{}).map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${SUPPLY_ICONS[n.toLowerCase()]||'📦'} ${n}</option>`).join('')}
+              <option value="__custom__">✏️ Свободный текст…</option>
+            </select>
+            <input id="proc-item-txt" class="input" style="width:100%;font-size:13px;margin-top:6px;display:none" placeholder="Название расходника">
+          </div>
+          <div style="display:flex;gap:8px">
+            <div style="flex:1">
+              <div class="cfg-lbl">Количество</div>
+              <input id="proc-qty" type="number" class="input" style="font-size:13px;width:100%" placeholder="10" min="1">
+            </div>
+            <div style="flex:1">
+              <div class="cfg-lbl">Дата доставки</div>
+              <input id="proc-date" type="date" class="input" style="font-size:13px;width:100%" value="${today}">
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="createProcurement('${pvzId}')" style="height:40px;white-space:nowrap">Добавить</button>
+        </div>
+
+      </div>
+      <div style="font-weight:800;font-size:14px;margin-bottom:10px">📋 История (${sorted.length})</div>`;
+    if(!sorted.length){
+      html+='<div style="color:var(--text-3);font-size:13px;padding:20px;text-align:center">Нет закупок</div>';
+    }else{
+      html+=sorted.map(([id,it])=>{
+        const overdue=it.delivery_date&&it.delivery_date<today&&!it.delivered;
+        const delivered=it.delivered;
+        const icon=SUPPLY_ICONS[(it.item||'').toLowerCase()]||'📦';
+        return `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1.5px solid ${overdue?'var(--red)':delivered?'var(--green)':'var(--border)'};border-radius:12px;margin-bottom:8px;background:${overdue?'rgba(255,69,58,.04)':delivered?'rgba(52,199,89,.04)':'var(--surface)'}">
+          <div style="font-size:28px">${icon}</div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:13px">${it.item||'—'}</div>
+            <div style="font-size:11px;color:var(--text-3)">
+              Кол-во: <b>${it.qty||'—'}</b> · Доставка: <b>${it.delivery_date||'—'}</b>
+              ${overdue?'<span style="color:var(--red);font-weight:700"> · ⚠️ Ожидает выдачи!</span>':''}
+              ${delivered?'<span style="color:var(--green)"> · ✅ Выдано</span>':''}
+            </div>
+            <div style="font-size:11px;color:var(--text-3)">Добавлено: ${new Date(it.created_at).toLocaleString('ru-RU')}</div>
+          </div>
+          ${!delivered?`<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="markDelivered('${pvzId}','${id}')">✅ Выдано</button>`:''}
+          <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red)" onclick="deleteProcurement('${pvzId}','${id}')">✕</button>
+        </div>`;
+      }).join('');
+    }
+    body.innerHTML=html;
+  });
+}
+window.createProcurement=async function(pvzId){
+  const sel=document.getElementById('proc-item-sel').value;
+  const txt=document.getElementById('proc-item-txt').value.trim();
+  const item=sel==='__custom__'?txt:sel;
+  const qty=parseInt(document.getElementById('proc-qty').value)||1;
+  const date=document.getElementById('proc-date').value;
+  if(!item){showToast('Выберите или введите расходник');return;}
+  if(!date){showToast('Укажите дату доставки');return;}
+  const id='pr_'+Date.now();
+  await set(ref(fdb,`/supplies/procurement/${pvzId}/${id}`),{item,qty,delivery_date:date,created_at:Date.now(),delivered:false});
+  showToast('✅ Закупка добавлена');
+  renderProcurementList(pvzId);
+};
+window.markDelivered=async function(pvzId,id){
+  await update(ref(fdb,`/supplies/procurement/${pvzId}/${id}`),{delivered:true,delivered_at:Date.now()});
+  showToast('✅ Отмечено как выданное');
+  renderProcurementList(pvzId);
+};
+window.deleteProcurement=async function(pvzId,id){
+  if(!confirm('Удалить закупку?'))return;
+  await remove(ref(fdb,`/supplies/procurement/${pvzId}/${id}`));
+  renderProcurementList(pvzId);
+};
+
+// ── PROCUREMENT OVERDUE ALERT on dashboard ─────────────────────────────────
+function checkProcurementAlerts(){
+  const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+  const yd=yesterday.toISOString().slice(0,10);
+  const today=new Date().toISOString().slice(0,10);
+  get(ref(fdb,'/supplies/procurement')).then(snap=>{
+    const all=snap.val()||{};
+    const alerts=[];
+    for(const pvzId in all){
+      const pvzName=(pvzMap[pvzId]||{}).pvz_name||pvzId;
+      for(const id in all[pvzId]){
+        const it=all[pvzId][id];
+        // Alert if delivery_date == yesterday and not yet delivered
+        if(it.delivery_date===yd&&!it.delivered){
+          alerts.push({pvzId,id,pvzName,item:it.item,qty:it.qty});
+        }
+      }
+    }
+    if(alerts.length){renderProcAlerts(alerts);}
+  });
+}
+function renderProcAlerts(alerts){
+  // Remove existing alerts
+  document.querySelectorAll('.proc-alert').forEach(e=>e.remove());
+  const container=document.getElementById('mainAlertContainer')||document.querySelector('.page-header')?.parentNode;
+  if(!container)return;
+  alerts.forEach(a=>{
+    const div=document.createElement('div');
+    div.className='proc-alert';
+    div.style.cssText='background:#FFF3CD;border:2px solid #F59E0B;border-radius:14px;padding:16px 20px;margin-bottom:12px;display:flex;align-items:flex-start;gap:14px';
+    div.innerHTML=`<div style="font-size:32px">📦</div>
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:14px;color:#92400E">Закупка должна была приехать вчера!</div>
+        <div style="font-size:13px;color:#78350F;margin-top:4px"><b>${a.item}</b> × ${a.qty} → <b>${a.pvzName}</b></div>
+        <div style="font-size:12px;color:#92400E;margin-top:2px">Нажмите «Выдано», когда расходники переданы на ПВЗ</div>
+      </div>
+      <button class="btn btn-primary" style="background:#F59E0B;white-space:nowrap" onclick="markDelivered('${a.pvzId}','${a.id}');this.closest('.proc-alert').remove()">✅ Выдано</button>`;
+    // Insert at top of main dashboard page
+    const dashPage=document.getElementById('page-dashboard');
+    if(dashPage)dashPage.insertBefore(div,dashPage.firstChild);
+  });
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ФИНАНСЫ
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Sub-tab switching ──────────────────────────────────────────────────────
+window.showFinSub=function(tab){
+  ['salary','cashflow','planfact'].forEach(t=>{
+    document.getElementById('fin-'+t).style.display=t===tab?'':'none';
+    const btn=document.getElementById('fst-'+t);
+    if(btn){btn.className=t===tab?'btn btn-primary':'btn btn-ghost';}
+  });
+  if(tab==='salary')loadSalaryDates();
+  if(tab==='cashflow')loadCashflow();
+  if(tab==='planfact'){showPfTab('ozon');}
+};
+function loadFinance(){showFinSub('salary');}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ЗП / ПРЕМИИ
+// ══════════════════════════════════════════════════════════════════════════════
+function getSalaryDates(){
+  // Выплаты 10-го и 25-го. Генерируем за 12 месяцев назад + следующую ближайшую.
+  const dates=[];
+  const now=new Date();
+  // Следующая выплата
+  const next=new Date(now);
+  if(now.getDate()<10){next.setDate(10);}
+  else if(now.getDate()<25){next.setDate(25);}
+  else{next.setMonth(next.getMonth()+1);next.setDate(10);}
+  dates.push(next.toISOString().slice(0,10));
+  // Прошедшие — 24 даты назад
+  const cur=new Date(now);
+  for(let i=0;i<24;i++){
+    if(cur.getDate()>=25){cur.setDate(25);}
+    else if(cur.getDate()>=10){cur.setDate(10);}
+    else{cur.setMonth(cur.getMonth()-1);cur.setDate(25);}
+    const d=cur.toISOString().slice(0,10);
+    if(d!==dates[0])dates.push(d);
+    cur.setDate(cur.getDate()-1);
+  }
+  return dates;
+}
+function formatSalaryDate(d){
+  const [y,m,day]=d.split('-');
+  const months=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+  return `${parseInt(day)} ${months[parseInt(m)-1]} ${y}`;
+}
+async function loadSalaryDates(){
+  const el=document.getElementById('salaryDates');
+  if(!el)return;
+  el.innerHTML='<div class="loading">Загрузка…</div>';
+  const dates=getSalaryDates();
+  const today=new Date().toISOString().slice(0,10);
+  // Load summaries
+  const snaps=await Promise.all(dates.map(d=>get(ref(fdb,`/finance/salary/${d}`)).catch(()=>null)));
+  el.innerHTML=dates.map((d,i)=>{
+    const data=snaps[i]?.val()||{};
+    const total=data.total||0,bonus=data.bonus||0,deduct=data.deduction||0;
+    const isNext=d>today;
+    const isFuture=d>today;
+    return `<div style="display:flex;align-items:center;padding:14px 18px;border:1.5px solid ${isFuture?'var(--oz-blue)':'var(--border)'};border-radius:13px;margin-bottom:8px;cursor:pointer;background:${isFuture?'rgba(37,99,235,.04)':'var(--card)'};transition:all .15s" onclick="openSalaryDate('${d}')" onmouseover="this.style.borderColor='var(--oz-blue)'" onmouseout="this.style.borderColor='${isFuture?'var(--oz-blue)':'var(--border)'}'">
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:14px">${formatSalaryDate(d)}${isFuture?'<span style="margin-left:8px;font-size:10px;background:var(--oz-blue);color:#fff;padding:2px 8px;border-radius:6px;font-weight:700">Следующая</span>':''}</div>
+        ${total?`<div style="font-size:12px;color:var(--text-3);margin-top:3px">Итого: <b>${total.toLocaleString('ru-RU')} ₽</b>${bonus?` · Премии: <b>${bonus.toLocaleString('ru-RU')} ₽</b>`:''}${deduct?` · Удержания: <b style="color:var(--red)">${deduct.toLocaleString('ru-RU')} ₽</b>`:''}</div>`:'<div style="font-size:12px;color:var(--text-3);margin-top:3px">Не заполнено</div>'}
+      </div>
+      <div style="color:var(--text-3);font-size:18px">›</div>
+    </div>`;
+  }).join('');
+}
+async function openSalaryDate(date){
+  document.getElementById('salaryDates').style.display='none';
+  const detail=document.getElementById('salaryDetail');
+  detail.style.display='';
+  document.getElementById('salaryDetailTitle').textContent='Выплата '+formatSalaryDate(date);
+  const body=document.getElementById('salaryDetailBody');
+  body.innerHTML='<div class="loading">Загрузка…</div>';
+  // Load data + employees + tabs
+  const [salSnap,empSnap,tabsSnap]=await Promise.all([
+    get(ref(fdb,`/finance/salary/${date}`)),
+    getEmployees(),
+    get(ref(fdb,'/appData/tabs')),
+  ]);
+  const salData=salSnap.val()||{};
+  const rawEmp=empSnap.val();
+  const emps=(Array.isArray(rawEmp)?rawEmp:Object.values(rawEmp||{})).filter(e=>e&&!e.hidden);
+  const tabs=tabsSnap.val()||{};
+  // Group emps by primary PVZ (where they have most shifts, same logic as bonuses)
+  const todayStr=new Date().toISOString().slice(0,10);
+  const empPvz={};
+  for(const emp of emps){
+    if(!emp.id)continue;
+    const seen=new Set();const pvzCounts={};
+    for(const tid in tabs){
+      const md=tabs[tid].monthData||{};
+      for(const ym in md){
+        const asgns=md[ym].assignments||{};
+        for(const d in asgns){
+          if(d<=todayStr&&asgns[d]?.employeeId===emp.id&&!seen.has(d)){
+            seen.add(d);pvzCounts[tid]=(pvzCounts[tid]||0)+1;
+          }
+        }
+      }
+    }
+    let primary=null,mx=0;for(const p in pvzCounts)if(pvzCounts[p]>mx){mx=pvzCounts[p];primary=p;}
+    empPvz[emp.id]={pvz:primary||'__none__',shifts:seen.size};
+  }
+  // Group by PVZ
+  const groups={};
+  for(const emp of emps){
+    if(!emp.id)continue;
+    const pvz=empPvz[emp.id]?.pvz||'__none__';
+    (groups[pvz]=groups[pvz]||[]).push({...emp,_shifts:empPvz[emp.id]?.shifts||0});
+  }
+  const sortedPvz=Object.keys(groups).sort((a,b)=>{
+    if(a==='__none__')return 1;if(b==='__none__')return -1;
+    return ((pvzMap[a]||{}).pvz_name||a).localeCompare((pvzMap[b]||{}).pvz_name||b,'ru');
+  });
+  let html='';
+  let grandTotal=0,grandBonus=0,grandDeduct=0;
+  for(const pvzId of sortedPvz){
+    const pvzName=pvzId==='__none__'?'Без привязки к ПВЗ':(pvzMap[pvzId]||{}).pvz_name||pvzId;
+    html+=`<div style="margin-bottom:20px"><div style="font-weight:800;font-size:14px;padding:10px 0;border-bottom:2px solid var(--border);margin-bottom:8px;display:flex;align-items:center;gap:8px">🏪 ${pvzName}</div>`;
+    for(const emp of groups[pvzId].sort((a,b)=>(a.fullName||a.name||'').localeCompare(b.fullName||b.name||'','ru'))){
+      const ed=salData.employees?.[emp.id]||{};
+      const init=(emp.fullName||emp.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2);
+      const avHtml=emp.avatarUrl?`<img src="${emp.avatarUrl}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:38px;height:38px;border-radius:50%;background:${emp.color||'#2563EB'};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0">${init}</div>`;
+      grandTotal+=ed.salary||0;grandBonus+=ed.bonus||0;grandDeduct+=ed.deduction||0;
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        ${avHtml}
+        <div style="min-width:140px">
+          <div style="font-weight:700;font-size:13px">${emp.fullName||emp.name||'—'}</div>
+          <div style="font-size:11px;color:var(--text-3)">${emp._shifts} смен</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div><div class="cfg-lbl">ЗП (₽)</div><input type="number" class="input" style="width:110px;font-size:13px" placeholder="0" value="${ed.salary||''}" onchange="saveSalaryEntry('${date}','${emp.id}','salary',+this.value)"></div>
+          <div><div class="cfg-lbl">Премия (₽)</div><input type="number" class="input" style="width:110px;font-size:13px" placeholder="0" value="${ed.bonus||''}" onchange="saveSalaryEntry('${date}','${emp.id}','bonus',+this.value)"></div>
+          <div><div class="cfg-lbl">Удержание (₽)</div><input type="number" class="input" style="width:110px;font-size:13px" placeholder="0" value="${ed.deduction||''}" onchange="saveSalaryEntry('${date}','${emp.id}','deduction',+this.value)"></div>
+        </div>
+      </div>`;
+    }
+    html+='</div>';
+  }
+  // Summary bar
+  html=`<div style="background:var(--card);border:1.5px solid var(--border);border-radius:13px;padding:14px 20px;margin-bottom:18px;display:flex;gap:24px;flex-wrap:wrap">
+    <div><div class="cfg-lbl">Итого ЗП</div><div style="font-size:20px;font-weight:900;color:var(--oz-blue)" id="sd-total">${grandTotal.toLocaleString('ru-RU')} ₽</div></div>
+    <div><div class="cfg-lbl">Из них премии</div><div style="font-size:18px;font-weight:800;color:var(--green)" id="sd-bonus">${grandBonus.toLocaleString('ru-RU')} ₽</div></div>
+    <div><div class="cfg-lbl">Удержания</div><div style="font-size:18px;font-weight:800;color:var(--red)" id="sd-deduct">${grandDeduct.toLocaleString('ru-RU')} ₽</div></div>
+  </div>`+html;
+  body.innerHTML=html;
+  // Back button also resets
+  document.querySelector('#salaryDetail button').onclick=()=>{
+    document.getElementById('salaryDetail').style.display='none';
+    document.getElementById('salaryDates').style.display='';
+    loadSalaryDates();
+  };
+}
+window.saveSalaryEntry=async function(date,empId,field,value){
+  await set(ref(fdb,`/finance/salary/${date}/employees/${empId}/${field}`),value||0);
+  // Recompute totals
+  const snap=await get(ref(fdb,`/finance/salary/${date}/employees`));
+  const all=snap.val()||{};
+  let total=0,bonus=0,deduct=0;
+  for(const eid in all){total+=all[eid].salary||0;bonus+=all[eid].bonus||0;deduct+=all[eid].deduction||0;}
+  await set(ref(fdb,`/finance/salary/${date}/total`),total);
+  await set(ref(fdb,`/finance/salary/${date}/bonus`),bonus);
+  await set(ref(fdb,`/finance/salary/${date}/deduction`),deduct);
+  const t=document.getElementById('sd-total'),b=document.getElementById('sd-bonus'),d=document.getElementById('sd-deduct');
+  if(t)t.textContent=total.toLocaleString('ru-RU')+' ₽';
+  if(b)b.textContent=bonus.toLocaleString('ru-RU')+' ₽';
+  if(d)d.textContent=deduct.toLocaleString('ru-RU')+' ₽';
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ФИНАНСОВЫЙ ПОТОК (Cashflow)
+// ══════════════════════════════════════════════════════════════════════════════
+async function loadCashflow(){
+  const snap=await get(ref(fdb,'/finance/cashflow'));
+  const items=snap.val()||{};
+  const sorted=Object.entries(items).sort((a,b)=>b[1].ts-a[1].ts);
+  let balance=sorted.reduce((acc,[,it])=>acc+(it.type==='income'?it.amount:-it.amount),0);
+  document.getElementById('cfBalance').textContent=(balance>0?'+':'')+balance.toLocaleString('ru-RU')+' ₽';
+  document.getElementById('cfBalance').style.color=balance>=0?'var(--oz-blue)':'var(--red)';
+  const el=document.getElementById('cashflowList');
+  if(!sorted.length){el.innerHTML='<div style="color:var(--text-3);text-align:center;padding:30px">Нет операций</div>';return;}
+  let running=0;// for running balance per entry (newest first, so we calculate from bottom)
+  const totals=[...sorted].reverse().reduce((acc,[id,it])=>{
+    running+=(it.type==='income'?it.amount:-it.amount);
+    acc[id]=running;return acc;
+  },{});
+  el.innerHTML=sorted.map(([id,it])=>{
+    const isInc=it.type==='income';
+    const bal=totals[id]||0;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--border);border-radius:12px;margin-bottom:6px;background:var(--card)">
+      <div style="font-size:24px">${isInc?'➕':'➖'}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13px">${it.desc||'—'}</div>
+        <div style="font-size:11px;color:var(--text-3)">${new Date(it.ts).toLocaleString('ru-RU')}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:800;font-size:15px;color:${isInc?'var(--green)':'var(--red)'}">${isInc?'+':'-'}${it.amount.toLocaleString('ru-RU')} ₽</div>
+        <div style="font-size:10px;color:var(--text-3)">Остаток: ${bal.toLocaleString('ru-RU')} ₽</div>
+      </div>
+      <button style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:18px" onclick="deleteCashflow('${id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+window.addCashflow=async function(){
+  const type=document.getElementById('cf-type').value;
+  const desc=document.getElementById('cf-desc').value.trim();
+  const amount=parseInt(document.getElementById('cf-amount').value)||0;
+  if(!desc){showToast('Введите описание');return;}
+  if(!amount){showToast('Введите сумму');return;}
+  // Check balance won't go negative on expense
+  if(type==='expense'){
+    const snap=await get(ref(fdb,'/finance/cashflow'));
+    const items=snap.val()||{};
+    const balance=Object.values(items).reduce((a,it)=>a+(it.type==='income'?it.amount:-it.amount),0);
+    if(balance-amount<0){showToast('❌ Недостаточно средств (остаток: '+balance.toLocaleString('ru-RU')+' ₽)');return;}
+  }
+  const id='cf_'+Date.now();
+  await set(ref(fdb,`/finance/cashflow/${id}`),{type,desc,amount,ts:Date.now()});
+  document.getElementById('cf-desc').value='';document.getElementById('cf-amount').value='';
+  showToast('✅ Операция добавлена');loadCashflow();
+};
+window.deleteCashflow=async function(id){
+  if(!confirm('Удалить операцию?'))return;
+  await remove(ref(fdb,`/finance/cashflow/${id}`));loadCashflow();
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ПЛАН / ФАКТ
+// ══════════════════════════════════════════════════════════════════════════════
+let _pfMkt='ozon';
+window.showPfTab=function(mkt){
+  _pfMkt=mkt;
+  ['ozon','wb','yandex'].forEach(m=>{
+    const btn=document.getElementById('pft-'+m);
+    if(btn)btn.className=m===mkt?'btn btn-primary':'btn btn-ghost';
+  });
+  loadPlanFact(mkt);
+};
+function getPfPeriods(mkt){
+  // ozon/yandex: monthly; wb: weekly
+  const periods=[];const now=new Date();
+  if(mkt==='wb'){
+    // Last 52 weeks
+    for(let i=0;i<52;i++){
+      const end=new Date(now);end.setDate(end.getDate()-i*7);
+      const start=new Date(end);start.setDate(start.getDate()-6);
+      const id='w_'+start.toISOString().slice(0,10);
+      periods.push({id,label:`${start.toLocaleDateString('ru-RU',{day:'2-digit',month:'short'})} — ${end.toLocaleDateString('ru-RU',{day:'2-digit',month:'short',year:'numeric'})}`});
+    }
+  }else{
+    // Last 24 months
+    for(let i=0;i<24;i++){
+      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+      const id='m_'+d.toISOString().slice(0,7);
+      const label=d.toLocaleDateString('ru-RU',{month:'long',year:'numeric'});
+      periods.push({id,label:label[0].toUpperCase()+label.slice(1)});
+    }
+  }
+  return periods;
+}
+async function loadPlanFact(mkt){
+  const el=document.getElementById('pfBody');
+  el.innerHTML='<div class="loading">Загрузка…</div>';
+  const periods=getPfPeriods(mkt);
+  const snap=await get(ref(fdb,`/finance/planfact/${mkt}`)).catch(()=>null);
+  const data=snap?.val()||{};
+  el.innerHTML=periods.map(p=>{
+    const pd=data[p.id]||{};
+    const hasFact=pd.fact||pd.details||pd.actUrl;
+    return `<div style="border:1.5px solid ${hasFact?'var(--oz-blue)':'var(--border)'};border-radius:13px;margin-bottom:8px;overflow:hidden">
+      <div style="display:flex;align-items:center;padding:12px 16px;cursor:pointer;background:${hasFact?'rgba(37,99,235,.04)':'var(--card)'}" onclick="togglePf('pf-${p.id}',this)">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">${p.label}</div>
+          ${hasFact?`<div style="font-size:11px;color:var(--text-3);margin-top:2px">
+            ${pd.fact?'Факт: <b>'+pd.fact.toLocaleString('ru-RU')+'₽</b>':''}
+            ${pd.actUrl?'<span style="color:var(--oz-blue);margin-left:8px">📎 Акт</span>':''}
+          </div>`:'<div style="font-size:11px;color:var(--text-3)">Не заполнено</div>'}
+        </div>
+        <div style="color:var(--text-3);font-size:18px" class="pf-arrow">›</div>
+      </div>
+      <div id="pf-${p.id}" style="display:none;padding:16px 20px;border-top:1px solid var(--border);background:var(--card)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+          <div><div class="cfg-lbl">Факт (₽)</div><input type="number" class="input" style="font-size:13px" placeholder="0" value="${pd.fact||''}" onchange="savePf('${mkt}','${p.id}','fact',+this.value)"></div>
+          <div><div class="cfg-lbl">Ссылка на акт</div><input type="text" class="input" style="font-size:13px" placeholder="https://…" value="${pd.actUrl||''}" onchange="savePf('${mkt}','${p.id}','actUrl',this.value.trim())">${pd.actUrl?`<a href="${pd.actUrl}" target="_blank" style="font-size:11px;color:var(--oz-blue);margin-top:4px;display:block">Открыть акт ↗</a>`:''}</div>
+        </div>
+        <div><div class="cfg-lbl">Детализация вычетов</div>
+          <textarea class="input" rows="4" style="width:100%;font-size:12px;font-family:inherit;resize:vertical" placeholder="— Хранение: 12 500 ₽&#10;— Обработка возвратов: 3 200 ₽&#10;— Логистика: 8 700 ₽" onchange="savePf('${mkt}','${p.id}','details',this.value)">${pd.details||''}</textarea>
+        </div>
+        ${pd.details?`<div style="margin-top:10px;padding:12px;background:rgba(37,99,235,.04);border-radius:10px;font-size:12px;line-height:1.8;color:var(--text-2)">${pd.details.split('\n').map(l=>`<div>${l}</div>`).join('')}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+window.togglePf=function(id,header){
+  const el=document.getElementById(id);if(!el)return;
+  const open=el.style.display==='none';
+  el.style.display=open?'':'none';
+  const arr=header.querySelector('.pf-arrow');if(arr)arr.textContent=open?'⌄':'›';
+};
+window.savePf=async function(mkt,pid,field,value){
+  await set(ref(fdb,`/finance/planfact/${mkt}/${pid}/${field}`),value);
+  showToast('✅ Сохранено');
+};
+
+window.navigate = function(page) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+page)?.classList.add('active');
+  document.getElementById('nav-'+page)?.classList.add('active');
+  // Page-specific initializers
+  if (page === 'cameras')     renderCamAdminList();
+  if (page === 'local-notif') populateLnPvzSelect();
+  if (page === 'mkt-logos')   { if(typeof loadMktLogos==='function') loadMktLogos(); }
+  if (page === 'bonuses')     loadBonusData();
+  if (page === 'procurement') loadProcurement();
+  if (page === 'finance')      loadFinance();
+};
+window.toggleImport = function() {
+  const b = document.getElementById('importBody');
+  const btn = b.previousElementSibling.querySelector('button');
+  const isOpen = b.style.display !== 'none';
+  b.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? 'Развернуть' : 'Свернуть';
+};
+
+window.previewImport = function() {
+  const txt = document.getElementById('importJson').value.trim();
+  const errEl = document.getElementById('importError');
+  const prevEl = document.getElementById('importPreview');
+  const prevContent = document.getElementById('importPreviewContent');
+  errEl.style.display = 'none';
+  try {
+    const obj = JSON.parse(txt);
+    const keys = Object.keys(obj);
+    prevContent.innerHTML = keys.map(name => {
+      const cfg = obj[name];
+      return `<div style="padding:4px 0;border-bottom:1px solid var(--border)"><strong>${name}</strong> — ${cfg.unit||'?'}, порог: ${cfg.low_threshold||'?'}, синонимов: ${(cfg.aliases||[]).length}</div>`;
+    }).join('');
+    prevEl.style.display = 'block';
+  } catch(e) {
+    errEl.textContent = 'Ошибка JSON: ' + e.message;
+    errEl.style.display = 'block';
+    prevEl.style.display = 'none';
+  }
+};
+
+window.applyImport = async function() {
+  const txt = document.getElementById('importJson').value.trim();
+  const errEl = document.getElementById('importError');
+  errEl.style.display = 'none';
+  try {
+    const obj = JSON.parse(txt);
+    if (typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Ожидается объект JSON');
+    const count = Object.keys(obj).length;
+    if (!confirm(`Применить конфиг из ${count} расходников? Текущий конфиг в Firebase будет заменён.`)) return;
+    await set(ref(fdb, '/supplies/config/global'), obj);
+    showToast(`✅ Конфиг импортирован: ${count} позиций`);
+  } catch(e) {
+    errEl.textContent = 'Ошибка: ' + e.message;
+    errEl.style.display = 'block';
+  }
+};
+
+window.loadCurrentToImport = function() {
+  const current = globalConfig;
+  document.getElementById('importJson').value = JSON.stringify(current, null, 2);
+  document.getElementById('importError').style.display = 'none';
+  document.getElementById('importPreview').style.display = 'none';
+  showToast('Текущий конфиг загружен в поле');
+};
+
+window.addEventListener('load', ()=>navigate('pvz'));
+
+</script>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon"><svg viewBox="0 0 24 24" fill="white" width="20" height="20"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg></div>
+    <div><div class="logo-text">Админ-панель</div><div class="logo-sub">Управление ПВЗ · OZON</div></div>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-secondary" onclick="navigate('log')">История</button>
+    <button class="btn btn-primary" onclick="navigate('config')">Конфиг</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="nav-group">
+      <div class="nav-label">Обзор</div>
+      <div class="nav-item active" id="nav-pvz" onclick="navigate('pvz')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Все ПВЗ</div>
+      <div class="nav-item" id="nav-requests" onclick="navigate('requests')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Запросы
+        <span class="nav-badge" id="navBadge"></span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-label">Управление</div>
+      <div class="nav-item" id="nav-pvzlist" onclick="navigate('pvzlist')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Список ПВЗ</div>
+      <div class="nav-item" id="nav-config" onclick="navigate('config')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Конфиг расходников</div>
+      <div class="nav-item" id="nav-bonuses" onclick="navigate('bonuses')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Премии</div>
+      <div class="nav-item" id="nav-procurement" onclick="navigate('procurement')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Закупки</div>
+      <div class="nav-item" id="nav-finance" onclick="navigate('finance')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Финансы</div>
+      <div class="nav-item" id="nav-mkt-logos" onclick="navigate('mkt-logos')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Иконки маркетплейсов</div>
+            <div class="nav-item" id="nav-local-notif" onclick="navigate('local-notif')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>Локальные уведомления</div>
+            <div class="nav-item" id="nav-notif" onclick="navigate('notif')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>Уведомления</div>
+            <div class="nav-item" id="nav-banners" onclick="navigate('banners')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>Баннеры</div>
+      <div class="nav-item" id="nav-cameras" onclick="navigate('cameras')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>Камеры</div>
+            <div class="nav-item" id="nav-log" onclick="navigate('log')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>История</div>
+    </div>
+  </aside>
+
+  <main>
+    <!-- PVZ -->
+    <div class="page active" id="page-pvz">
+      <div class="page-title">Все ПВЗ</div>
+      <div class="page-subtitle">Остатки расходников по всем ПВЗ в реальном времени.</div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div><div><div class="stat-value" id="statPvz">—</div><div class="stat-label">ПВЗ всего</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg></div><div><div class="stat-value" id="statPending">—</div><div class="stat-label">Ожид. запросов</div></div></div>
+        <div class="stat-card"><div class="stat-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div><div class="stat-value" id="statLow">—</div><div class="stat-label">Низкий остаток</div></div></div>
+
+      </div>
+      <div class="pvz-grid" id="pvzGrid"><div style="color:var(--text-3);padding:20px">Загрузка…</div></div>
+    </div>
+
+    <!-- REQUESTS -->
+    <div class="page" id="page-requests">
+      <div class="page-title">Запросы</div>
+      <div class="page-subtitle">Заявки из чатов ВКонтакте и от сотрудников</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>ПВЗ</th><th>Дата</th><th>Расходники</th><th>Статус</th><th>Действия</th></tr></thead>
+        <tbody id="requestsTbody"><tr><td colspan="6"><div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Загрузка…</div></div></td></tr></tbody>
+      </table></div>
+    </div>
+
+    <!-- PVZ LIST -->
+    <div class="page" id="page-pvzlist">
+      <div class="page-title">Список ПВЗ</div>
+	  <button class="btn btn-primary" onclick="openNewPvzModal()" style="margin-bottom:16px">+ Добавить новый ПВЗ</button>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-weight:700;margin-bottom:3px">📅 «Предложить будущий график»</div>
+          <div style="font-size:12px;color:var(--text-3)">Разрешить сотрудникам предлагать варианты графика</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="schedule-proposal-toggle" style="width:18px;height:18px;accent-color:var(--oz-blue)" onchange="saveScheduleToggle(this.checked)">
+          <label for="schedule-proposal-toggle" style="font-size:13px;font-weight:600;cursor:pointer">Активно</label>
+        </div>
+      </div>
+      <div class="pvz-list-section" id="pvzAdminList"><div style="padding:20px;color:var(--text-3)">Загрузка…</div></div>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="page" id="page-config">
+      <div class="page-title">Конфигурация расходников</div>
+      <div class="page-subtitle">Глобальный список, синонимы и пороги.</div>
+
+      <div class="config-section" style="margin-bottom:20px">
+        <div class="config-section-header">
+          <div class="config-section-title">📊 Маркетплейсы: обязательность статистики для закрытия смены</div>
+        </div>
+        <div id="mktRequiredBody" style="padding:16px 24px;display:flex;flex-wrap:wrap;gap:14px"></div>
+      </div>
+
+      <div class="config-section" style="margin-bottom:20px">
+        <div class="config-section-header">
+          <div class="config-section-title">📥 Импорт конфига из JSON</div>
+          <button class="btn btn-ghost btn-sm" onclick="toggleImport()">Развернуть</button>
+        </div>
+        <div id="importBody" style="display:none;padding:20px 24px">
+          <div style="font-size:13px;color:var(--text-2);margin-bottom:12px;line-height:1.5">
+            Вставьте JSON-объект с конфигурацией расходников. Формат: <code style="background:var(--surface-3);padding:1px 5px;border-radius:4px">{"туалетная бумага":{"unit":"рулонов","low_threshold":5,"aliases":[...]}}</code>
+          </div>
+          <textarea id="importJson" style="width:100%;height:200px;padding:12px;border:1.5px solid var(--border);border-radius:10px;font-family:monospace;font-size:12px;color:var(--text);background:var(--surface-2);resize:vertical;outline:none;transition:border-color .15s" placeholder='{ "туалетная бумага": { "unit": "рулонов", "low_threshold": 5, "aliases": ["туалетка", "тб"] }, ... }'></textarea>
+          <div id="importError" style="color:var(--red);font-size:12px;margin-top:8px;display:none"></div>
+          <div style="display:flex;gap:10px;margin-top:12px">
+            <button class="btn btn-primary" onclick="applyImport()">✅ Применить в Firebase</button>
+            <button class="btn btn-secondary" onclick="previewImport()">👁 Предпросмотр</button>
+            <button class="btn btn-ghost" onclick="loadCurrentToImport()">⬇ Загрузить текущий</button>
+          </div>
+          <div id="importPreview" style="margin-top:14px;display:none">
+            <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:8px">Предпросмотр:</div>
+            <div id="importPreviewContent" style="background:var(--surface-2);border-radius:8px;padding:12px;font-size:12px;line-height:1.6"></div>
+          </div>
+        </div>
+      </div>
+      <div class="config-section">
+        <div class="config-section-header">
+          <div class="config-section-title">Глобальный конфиг</div>
+          <button class="btn btn-primary" onclick="addSupplyType()">+ Добавить</button>
+        </div>
+        <div class="config-body" id="globalConfigBody"><div style="color:var(--text-3)">Загрузка…</div></div>
+      </div>
+    </div>
+
+    <!-- LOCAL PVZ NOTIFICATIONS -->
+    <div class="page" id="page-local-notif">
+      <div class="page-title">Локальные уведомления ПВЗ</div>
+      <div class="page-subtitle">Уведомление, которое видят только сотрудники конкретного ПВЗ.</div>
+      <div class="config-section">
+        <div class="config-section-header">
+          <div class="config-section-title">Выберите ПВЗ и настройте уведомление</div>
+        </div>
+        <div class="config-body">
+          <div class="form-group">
+            <label class="form-label">ПВЗ</label>
+            <select class="input" id="ln-pvz-select" onchange="loadLocalNotif(this.value)" style="max-width:280px">
+              <option value="">— Выберите ПВЗ —</option>
+            </select>
+          </div>
+          <div id="ln-form" style="display:none">
+            <div class="form-group"><label class="form-label">Текст уведомления</label>
+              <textarea class="input" id="ln-text" rows="3" style="resize:vertical" oninput="updateLnPreview()"></textarea></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+              <div class="form-group"><label class="form-label">Иконка</label><input class="input" id="ln-emoji" value="📍" style="font-size:22px;max-width:80px" oninput="updateLnPreview()"></div>
+              <div class="form-group"><label class="form-label">Размер шрифта</label><input class="input" id="ln-fontsize" type="number" min="10" max="24" value="13"></div>
+              <div class="form-group"><label class="form-label">Авто-скрыть (сек)</label><input class="input" id="ln-timer" type="number" min="0" value="0"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Цвет фона</label>
+              <input class="input" id="ln-bg" value="#FF5E00" oninput="updateLnPreview()">
+              <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+                ${<div onclick="document.getElementById('ln-bg').value='#FF5E00';updateLnPreview()" style="width:26px;height:26px;border-radius:6px;background:#FF5E00;cursor:pointer" title="Оранжевый"></div>
+              <div onclick="document.getElementById('ln-bg').value='#FF3353';updateLnPreview()" style="width:26px;height:26px;border-radius:6px;background:#FF3353;cursor:pointer" title="Красный"></div>
+              <div onclick="document.getElementById('ln-bg').value='#F5A623';updateLnPreview()" style="width:26px;height:26px;border-radius:6px;background:#F5A623;cursor:pointer" title="Жёлтый"></div>
+              <div onclick="document.getElementById('ln-bg').value='#005BFF';updateLnPreview()" style="width:26px;height:26px;border-radius:6px;background:#005BFF;cursor:pointer" title="Синий"></div>
+              <div onclick="document.getElementById('ln-bg').value='#00B871';updateLnPreview()" style="width:26px;height:26px;border-radius:6px;background:#00B871;cursor:pointer" title="Зелёный"></div>
+              <div onclick="document.getElementById('ln-bg').value='#1A1A1A';updateLnPreview()" style="width:26px;height:26px;border-radius:6px;background:#1A1A1A;cursor:pointer" title="Чёрный"></div>}
+              </div>
+            </div>
+            <div class="form-group"><label class="form-label">Цвет текста</label><input class="input" id="ln-color" value="#ffffff" type="text" style="max-width:120px" oninput="updateLnPreview()"></div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+              <input type="checkbox" id="ln-active" style="width:16px;height:16px;accent-color:var(--oz-blue)">
+              <label for="ln-active" style="font-size:13px">Активно</label>
+            </div>
+            <div id="ln-preview" style="border-radius:10px;padding:12px 16px;display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;transition:all .2s">
+              <span id="ln-pico" style="font-size:18px">📍</span>
+              <span id="ln-ptxt" style="font-size:13px;font-weight:600"></span>
+            </div>
+            <div style="display:flex;gap:10px">
+              <button class="btn btn-primary" onclick="saveLocalNotif()">💾 Сохранить и применить</button>
+              <button class="btn btn-danger" onclick="clearLocalNotif()">⛔ Деактивировать</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="page" id="page-procurement">
+      <div class="page-title">История закупок</div>
+      <div class="page-subtitle">Создавайте закупки для ПВЗ. На следующий день после даты доставки система напомнит выдать расходники.</div>
+      <div class="config-section">
+        <div id="procurementTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"></div>
+        <div id="procurementBody"></div>
+      </div>
+    </div>
+
+    <!-- ── ФИНАНСЫ ── -->
+    <div class="page" id="page-finance">
+      <div class="page-title">Финансы</div>
+      <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap" id="finSubTabs">
+        <button class="btn btn-primary" id="fst-salary" onclick="showFinSub('salary')">💰 ЗП / Премии</button>
+        <button class="btn btn-ghost" id="fst-cashflow" onclick="showFinSub('cashflow')">🏦 Фин.поток</button>
+        <button class="btn btn-ghost" id="fst-planfact" onclick="showFinSub('planfact')">📊 План / Факт</button>
+      </div>
+
+      <!-- SALARY -->
+      <div id="fin-salary">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <div style="font-weight:800;font-size:15px">Даты выплат</div>
+          <div style="font-size:12px;color:var(--text-3)">Выплаты 10-го и 25-го числа</div>
+        </div>
+        <div id="salaryDates"></div>
+        <!-- Detail panel -->
+        <div id="salaryDetail" style="display:none;margin-top:20px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('salaryDetail').style.display='none'">← Назад</button>
+            <div style="font-weight:800;font-size:15px" id="salaryDetailTitle"></div>
+          </div>
+          <div id="salaryDetailBody"></div>
+        </div>
+      </div>
+
+      <!-- CASHFLOW -->
+      <div id="fin-cashflow" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-weight:800;font-size:15px">Расчётный счёт расходников</div>
+            <div style="font-size:12px;color:var(--text-3)">Баланс не может опуститься ниже 0</div>
+          </div>
+          <div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:10px 18px;text-align:center">
+            <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;font-weight:700">Остаток</div>
+            <div style="font-size:24px;font-weight:900;color:var(--oz-blue)" id="cfBalance">—</div>
+          </div>
+        </div>
+        <!-- Add transaction -->
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:12px">Добавить операцию</div>
+          <div style="display:grid;grid-template-columns:auto 1fr 1fr auto;gap:10px;align-items:end;flex-wrap:wrap">
+            <div>
+              <div class="cfg-lbl">Тип</div>
+              <select id="cf-type" class="input" style="font-size:13px">
+                <option value="income">➕ Пополнение</option>
+                <option value="expense">➖ Расход</option>
+              </select>
+            </div>
+            <div>
+              <div class="cfg-lbl">Описание</div>
+              <input id="cf-desc" class="input" style="font-size:13px" placeholder="Что за операция">
+            </div>
+            <div>
+              <div class="cfg-lbl">Сумма (₽)</div>
+              <input id="cf-amount" type="number" class="input" style="font-size:13px" placeholder="0" min="1">
+            </div>
+            <button class="btn btn-primary" onclick="addCashflow()">Добавить</button>
+          </div>
+        </div>
+        <div id="cashflowList"></div>
+      </div>
+
+      <!-- PLAN/FACT -->
+      <div id="fin-planfact" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button class="btn btn-primary" id="pft-ozon" onclick="showPfTab('ozon')">🟠 Ozon</button>
+          <button class="btn btn-ghost" id="pft-wb" onclick="showPfTab('wb')">🟣 WB</button>
+          <button class="btn btn-ghost" id="pft-yandex" onclick="showPfTab('yandex')">🟡 Яндекс</button>
+        </div>
+        <div id="pfBody"></div>
+      </div>
+    </div>
+        <!-- MARKETPLACE LOGOS -->
+    <div class="page" id="page-bonuses">
+      <div class="page-title">Премии — модификатор смен</div>
+      <div class="page-subtitle">Добавьте или вычтите смены сотруднику. Это отразится в его панели и на доске почёта.</div>
+      <div style="margin:14px 0">
+        <input class="input" id="bonusSearch" placeholder="🔍 Поиск сотрудника…" oninput="renderBonuses()" style="max-width:340px">
+      </div>
+      <div id="bonusesBody"></div>
+    </div>
+
+    <div class="page" id="page-mkt-logos">
+      <div class="page-title">Иконки маркетплейсов</div>
+      <div class="page-subtitle">Загрузите логотипы — они отображаются рядом с полями ввода статистики приёмки у сотрудников.</div>
+      <div class="config-section">
+        <div class="config-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px">
+            <div style="padding:16px;background:var(--surface-2);border-radius:12px;border:1px solid var(--border)">
+              <div style="font-weight:700;font-size:13px;margin-bottom:12px;text-transform:uppercase">Ozon</div>
+              <div id="mkt-logo-preview-ozon" style="width:60px;height:60px;border-radius:12px;overflow:hidden;margin-bottom:10px;background:#005BFF;display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;font-weight:900;font-family:Unbounded,sans-serif">OZ</div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <input class="input" id="mkt-logo-url-ozon" placeholder="https://...">
+                <label style="padding:7px 12px;background:var(--surface-3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;text-align:center">📁 Загрузить<input type="file" accept="image/*" style="display:none" onchange="uploadMktLogo('ozon',this)"></label>
+                <button class="btn btn-sm btn-primary" onclick="saveMktLogo('ozon')">Сохранить</button>
+              </div>
+            </div>
+            <div style="padding:16px;background:var(--surface-2);border-radius:12px;border:1px solid var(--border)">
+              <div style="font-weight:700;font-size:13px;margin-bottom:12px;text-transform:uppercase">Яндекс</div>
+              <div id="mkt-logo-preview-yandex" style="width:60px;height:60px;border-radius:12px;overflow:hidden;margin-bottom:10px;background:#FC3F1D;display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;font-weight:900;font-family:Unbounded,sans-serif">YA</div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <input class="input" id="mkt-logo-url-yandex" placeholder="https://...">
+                <label style="padding:7px 12px;background:var(--surface-3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;text-align:center">📁 Загрузить<input type="file" accept="image/*" style="display:none" onchange="uploadMktLogo('yandex',this)"></label>
+                <button class="btn btn-sm btn-primary" onclick="saveMktLogo('yandex')">Сохранить</button>
+              </div>
+            </div>
+            <div style="padding:16px;background:var(--surface-2);border-radius:12px;border:1px solid var(--border)">
+              <div style="font-weight:700;font-size:13px;margin-bottom:12px;text-transform:uppercase">Avito</div>
+              <div id="mkt-logo-preview-avito" style="width:60px;height:60px;border-radius:12px;overflow:hidden;margin-bottom:10px;background:#00AAFF;display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;font-weight:900;font-family:Unbounded,sans-serif">AV</div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <input class="input" id="mkt-logo-url-avito" placeholder="https://...">
+                <label style="padding:7px 12px;background:var(--surface-3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;text-align:center">📁 Загрузить<input type="file" accept="image/*" style="display:none" onchange="uploadMktLogo('avito',this)"></label>
+                <button class="btn btn-sm btn-primary" onclick="saveMktLogo('avito')">Сохранить</button>
+              </div>
+            </div>
+            <div style="padding:16px;background:var(--surface-2);border-radius:12px;border:1px solid var(--border)">
+              <div style="font-weight:700;font-size:13px;margin-bottom:12px;text-transform:uppercase">Wildberries</div>
+              <div id="mkt-logo-preview-wb" style="width:60px;height:60px;border-radius:12px;overflow:hidden;margin-bottom:10px;background:#CB11AB;display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;font-weight:900;font-family:Unbounded,sans-serif">WB</div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <input class="input" id="mkt-logo-url-wb" placeholder="https://...">
+                <label style="padding:7px 12px;background:var(--surface-3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;text-align:center">📁 Загрузить<input type="file" accept="image/*" style="display:none" onchange="uploadMktLogo('wb',this)"></label>
+                <button class="btn btn-sm btn-primary" onclick="saveMktLogo('wb')">Сохранить</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+        <!-- GENERAL NOTIFICATIONS -->
+    <div class="page" id="page-notif">
+      <div class="page-title">Генеральные уведомления</div>
+      <div class="page-subtitle">Баннер, который видят все сотрудники на своей странице.</div>
+      <div class="config-section">
+        <div class="config-section-header"><div class="config-section-title">Настройка баннера</div></div>
+        <div class="config-body">
+          <div class="form-group"><label class="form-label">Текст уведомления</label><textarea class="input" id="gn-text" rows="3" placeholder="Напишите важное сообщение для всех сотрудников…" style="resize:vertical" oninput="updateGenNotifPreview()"></textarea></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div class="form-group"><label class="form-label">Иконка</label><input class="input" id="gn-emoji" value="📢" style="font-size:22px;max-width:80px" oninput="updateGenNotifPreview()"></div>
+            <div class="form-group"><label class="form-label">Размер шрифта</label><input class="input" id="gn-fontsize" type="number" min="10" max="24" value="13"></div>
+            <div class="form-group"><label class="form-label">Авто-скрыть (сек)</label><input class="input" id="gn-timer" type="number" min="0" value="0"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Цвет фона (CSS: цвет или градиент)</label>
+            <input class="input" id="gn-bg" value="linear-gradient(135deg,#005BFF,#7C3AED)" oninput="updateGenNotifPreview()">
+            <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+              ${<div onclick="document.getElementById('gn-bg').value='linear-gradient(135deg,#005BFF,#7C3AED)';updateGenNotifPreview()" style="width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,#005BFF,#7C3AED);cursor:pointer" title="Синий"></div>
+                <div onclick="document.getElementById('gn-bg').value='#FF0000';updateGenNotifPreview()" style="width:28px;height:28px;border-radius:6px;background:#FF0000;cursor:pointer" title="Красный"></div>
+                <div onclick="document.getElementById('gn-bg').value='#FF6100';updateGenNotifPreview()" style="width:28px;height:28px;border-radius:6px;background:#FF6100;cursor:pointer" title="Оранжевый"></div>
+                <div onclick="document.getElementById('gn-bg').value='#00B871';updateGenNotifPreview()" style="width:28px;height:28px;border-radius:6px;background:#00B871;cursor:pointer" title="Зелёный"></div>
+                <div onclick="document.getElementById('gn-bg').value='#FFD600';updateGenNotifPreview()" style="width:28px;height:28px;border-radius:6px;background:#FFD600;cursor:pointer" title="Жёлтый"></div>
+                <div onclick="document.getElementById('gn-bg').value='#1A1A1A';updateGenNotifPreview()" style="width:28px;height:28px;border-radius:6px;background:#1A1A1A;cursor:pointer" title="Чёрный"></div>}
+            </div>
+          </div>
+          <div class="form-group"><label class="form-label">Цвет текста</label><input class="input" id="gn-color" value="#ffffff" type="text" oninput="updateGenNotifPreview()" style="max-width:120px"></div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+            <input type="checkbox" id="gn-active" style="width:16px;height:16px;accent-color:var(--oz-blue)">
+            <label for="gn-active" style="font-size:13px">Активно (показывать сотрудникам прямо сейчас)</label>
+          </div>
+          <div id="gn-preview" style="margin-top:0;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:6px">Предпросмотр:</div>
+            <div id="gn-preview-inner" style="border-radius:10px;padding:12px 16px;display:flex;align-items:flex-start;gap:10px;transition:all .2s">
+              <span id="gn-pico" style="font-size:18px">📢</span>
+              <span id="gn-ptxt" style="font-size:13px;font-weight:600"></span>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-primary" onclick="saveGenNotif()">💾 Сохранить и применить</button>
+            <button class="btn btn-danger" onclick="clearGenNotif()">⛔ Деактивировать</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+        <!-- BANNERS -->
+    <div class="page" id="page-banners">
+      <div class="page-title">Баннеры для сотрудников</div>
+      <div class="page-subtitle">Отображаются в карусели на странице сотрудников. Формат 1:1.</div>
+      <div class="config-section">
+        <div class="config-section-header">
+          <div class="config-section-title">Управление баннерами</div>
+          <button class="btn btn-primary" onclick="addBanner()">+ Добавить баннер</button>
+        </div>
+        <div class="config-body" id="bannersBody"><div style="color:var(--text-3)">Загрузка…</div></div>
+      </div>
+      <div class="config-section" style="margin-top:16px">
+        <div class="config-section-header"><div class="config-section-title">💡 Примеры градиентов</div></div>
+        <div class="config-body" style="display:flex;flex-wrap:wrap;gap:10px">
+          ${["linear-gradient(135deg,#005BFF,#7C3AED)","linear-gradient(135deg,#00C97A,#0096CC)","linear-gradient(135deg,#FF6100,#FF3B5C)","linear-gradient(135deg,#F59E0B,#EF4444)","linear-gradient(135deg,#0EA5E9,#8B5CF6)","linear-gradient(135deg,#10B981,#059669)"].<div onclick="document.getElementById('ln-bg').value='linear-gradient(135deg,#005BFF,#7C3AED)';updateLnPreview()" style="width:64px;height:32px;border-radius:6px;background:linear-gradient(135deg,#005BFF,#7C3AED);cursor:pointer;flex-shrink:0"></div>
+              <div onclick="document.getElementById('ln-bg').value='linear-gradient(135deg,#00C97A,#0096CC)';updateLnPreview()" style="width:64px;height:32px;border-radius:6px;background:linear-gradient(135deg,#00C97A,#0096CC);cursor:pointer;flex-shrink:0"></div>
+              <div onclick="document.getElementById('ln-bg').value='linear-gradient(135deg,#FF6100,#FF3B5C)';updateLnPreview()" style="width:64px;height:32px;border-radius:6px;background:linear-gradient(135deg,#FF6100,#FF3B5C);cursor:pointer;flex-shrink:0"></div>
+              <div onclick="document.getElementById('ln-bg').value='linear-gradient(135deg,#F59E0B,#EF4444)';updateLnPreview()" style="width:64px;height:32px;border-radius:6px;background:linear-gradient(135deg,#F59E0B,#EF4444);cursor:pointer;flex-shrink:0"></div>
+              <div onclick="document.getElementById('ln-bg').value='linear-gradient(135deg,#0EA5E9,#8B5CF6)';updateLnPreview()" style="width:64px;height:32px;border-radius:6px;background:linear-gradient(135deg,#0EA5E9,#8B5CF6);cursor:pointer;flex-shrink:0"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAMERAS -->
+    <div class="page" id="page-cameras">
+      <div class="page-title">Видеонаблюдение</div>
+      <div class="page-subtitle">Фото зон охвата и встраивание трансляций для каждой камеры ПВЗ.</div>
+      <div id="camAdminList">
+        <div style="color:var(--text-3);padding:20px">Загрузка списка ПВЗ…</div>
+      </div>
+    </div>
+
+        <!-- LOG -->
+    <div class="page" id="page-log">
+      <div class="page-title">История изменений</div>
+      <div class="page-subtitle">Все ручные и автоматические изменения остатков</div>
+      <div class="config-section">
+        <div class="config-section-header"><div class="config-section-title">Лог операций</div></div>
+        <div class="config-body" id="editLogContainer"><div style="color:var(--text-3)">Загрузка…</div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODALS -->
+<div class="overlay" id="editOverlay" onclick="if(event.target===this)closeModal('editOverlay')">
+  <div class="modal"><div class="modal-header"><div class="modal-title" id="editModalTitle">Изменить остатки</div><button class="modal-close" onclick="closeModal('editOverlay')">×</button></div>
+  <div class="modal-body" id="editModalBody"></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('editOverlay')">Отмена</button><button class="btn btn-primary" onclick="saveEdit()">Сохранить</button></div></div>
+</div>
+
+<div class="overlay" id="pvzConfigOverlay" onclick="if(event.target===this)closeModal('pvzConfigOverlay')">
+  <div class="modal"><div class="modal-header"><div class="modal-title" id="pvzConfigTitle">Конфиг ПВЗ</div><button class="modal-close" onclick="closeModal('pvzConfigOverlay')">×</button></div>
+  <div class="modal-body" id="pvzConfigBody"></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('pvzConfigOverlay')">Отмена</button><button class="btn btn-primary" onclick="savePvzConfig()">Сохранить</button></div></div>
+</div>
+
+<div class="overlay" id="requestOverlay" onclick="if(event.target===this)closeModal('requestOverlay')">
+  <div class="modal"><div class="modal-header"><div class="modal-title">Заявка</div><button class="modal-close" onclick="closeModal('requestOverlay')">×</button></div>
+  <div class="modal-body" id="requestModalBody"></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('requestOverlay')">Закрыть</button><button class="btn btn-primary" id="requestModalSave">Сохранить</button></div></div>
+</div>
+
+<div id="toast"></div>
+
+<!-- SUPPLY PVZ MODAL (#2) -->
+<div class="modal-overlay" id="supplyPvzOv" onclick="if(event.target===this)closeSupplyPvz()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--surface);border-radius:16px;max-width:480px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:800;font-size:15px" id="supplyPvzTitle">Где показывать</div>
+      <button onclick="closeSupplyPvz()" style="background:none;border:none;font-size:22px;color:var(--text-3);cursor:pointer">×</button>
+    </div>
+    <div style="padding:14px 22px;display:flex;gap:8px;border-bottom:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" onclick="supplyPvzAll(true)">✓ Включить все</button>
+      <button class="btn btn-ghost btn-sm" onclick="supplyPvzAll(false)">✕ Выключить все</button>
+    </div>
+    <div id="supplyPvzBody" style="padding:16px 22px;overflow-y:auto;flex:1"></div>
+  </div>
+  <!-- MODAL ДЛЯ СОЗДАНИЯ НОВОГО ПВЗ -->
+<div class="overlay" id="newPvzOverlay" onclick="if(event.target===this)closeModal('newPvzOverlay')">
+  <div class="modal" style="width:520px">
+    <div class="modal-header">
+      <div class="modal-title">Добавить новый ПВЗ</div>
+      <button class="modal-close" onclick="closeModal('newPvzOverlay')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Ключ в базе (pvz_id)</label>
+        <input class="input" id="new-pvz-id" placeholder="pvz_novgorod_01" style="font-family:monospace">
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px">Только латинские буквы, цифры и подчёркивания</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Название (внутреннее)</label>
+        <input class="input" id="new-pvz-name" placeholder="Нижний Новгород, Автозавод">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Публичное название</label>
+        <input class="input" id="new-pvz-public" placeholder="Автозавод (Озон)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Chat ID бота (botzavhoz)</label>
+        <input class="input" id="new-pvz-chat" placeholder="2000000123" type="number">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('newPvzOverlay')">Отмена</button>
+      <button class="btn btn-primary" onclick="createNewPvz()">Создать ПВЗ</button>
+    </div>
+  </div>
+</div>
+</div>
+</body></html>
