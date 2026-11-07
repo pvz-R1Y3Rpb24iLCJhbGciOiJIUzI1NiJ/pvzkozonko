@@ -10,17 +10,9 @@ ROOT = Path(__file__).resolve().parent.parent
 SDK = "10.14.1"
 PAGES = {
     "admin/schedule.html": ("admin", "schedule"),
-    "admin/employees.html": ("admin", "employees"),
     "admin/control.html": ("admin", "control"),
-    "admin/logs.html": ("admin", "logs"),
-    "admin/lookup.html": ("admin", "lookup"),
     "admin/analytics.html": ("admin", "analytics"),
     "admin/panel.html": ("admin", "panel"),
-    "admin/pvz.html": ("admin", "pvz"),
-    "admin/claims.html": ("admin", "claims"),
-    "admin/claims-reports.html": ("admin", "claims"),
-    "admin/claims-install.html": ("admin", "claims"),
-    "admin/supplies-log.html": ("admin", "supplies-log"),
     "returns_dashboard.html": ("staff", "returns"),
     "battleship.html": ("staff", "battleship"),
     "tests.html": ("staff", "tests"),

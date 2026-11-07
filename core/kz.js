@@ -109,7 +109,7 @@
       return;
     }
     // admin
-    if (isAdmin(u)) { readyResolve(u); onDom(function () { mountShell(u); }); return; }
+    if (isAdmin(u)) { readyResolve(u); onDom(embedTweaks); return; }
     onDom(showLogin);
   });
 
@@ -156,39 +156,25 @@
     });
   }
 
-  // ── верхнее меню (единое для всех админ-страниц) ───────────────────────
-  var NAV = [
-    ['home', 'Сегодня', 'admin/index.html'],
-    ['schedule', 'График и табель', 'admin/schedule.html'],
-    ['employees', 'Сотрудники', 'admin/employees.html'],
-    ['pvz', 'Пункты', 'admin/pvz.html'],
-    ['deductions', 'Удержания', 'admin/deductions.html'],
-    ['claims', 'Претензии', 'admin/claims.html'],
-    ['panel', 'Админка ПВЗ', 'admin/panel.html'],
-    ['control', 'Контроль графиков', 'admin/control.html'],
-    ['lookup', 'Кто работал', 'admin/lookup.html'],
-    ['analytics', 'Аналитика', 'admin/analytics.html'],
-    ['returns', 'Возвраты', 'returns_dashboard.html'],
-    ['supplies-log', 'Чаты', 'admin/supplies-log.html'],
-    ['logs', 'Логи', 'admin/logs.html'],
-    ['staff', 'Панель ПВЗ ↗', 'supplies_staff_2col.html']
-  ];
-  function mountShell() {
-    if (document.getElementById('kz-bar') || me.dataset.nav === 'off') return;
-    var bar = document.createElement('nav');
-    bar.id = 'kz-bar';
-    bar.setAttribute('aria-label', 'Разделы');
-    var links = NAV.map(function (n) {
-      var cur = n[0] === PAGE ? ' aria-current="page"' : '';
-      var ext = n[0] === 'staff' ? ' target="_blank" rel="noopener"' : '';
-      return '<a href="' + BASE + n[2] + '"' + cur + ext + '>' + n[1] + '</a>';
-    }).join('');
-    bar.innerHTML = '<a class="kz-logo" href="' + BASE + 'admin/index.html"><span class="kz-dot"></span>Kozonko</a>' +
-      '<div class="kz-links">' + links + '</div>' +
-      '<button type="button" class="kz-out" title="Выйти на этом устройстве">Выйти</button>';
-    document.body.insertBefore(bar, document.body.firstChild);
-    bar.querySelector('.kz-out').addEventListener('click', KZ.logout);
-    var c = bar.querySelector('[aria-current]');
-    if (c && c.scrollIntoView) c.scrollIntoView({ block: 'nearest', inline: 'center' });
+  // ── единое приложение ──────────────────────────────────────────────────
+  // Старые админ-страницы живут внутри приложения (admin/index.html#раздел) во фрейме.
+  // Открытые напрямую — переадресуются в нужный раздел приложения.
+  var EMBED = window.top !== window.self || /[?&]embed=1/.test(location.search);
+  var ROUTES = { schedule: 'schedule', panel: 'settings', analytics: 'analytics', control: 'analytics/shifts' };
+  if (ROLE === 'admin' && PAGE !== 'app') {
+    if (!EMBED && ROUTES[PAGE]) { location.replace(BASE + 'admin/index.html#' + ROUTES[PAGE]); return; }
+    document.documentElement.classList.add('kz-embed');
+  }
+  // В настройках скрываем то, что теперь живёт в отдельных разделах приложения
+  var TWEAKS = {
+    panel: { hide: '#nav-pvz,#nav-requests,#nav-pvzlist,#nav-log', start: function () { if (window.navigate) window.navigate('config'); } }
+  };
+  function embedTweaks() {
+    var t = TWEAKS[PAGE];
+    if (!t) return;
+    var st = document.createElement('style');
+    st.textContent = t.hide + '{display:none!important}';
+    document.head.appendChild(st);
+    if (t.start) setTimeout(t.start, 300);
   }
 })();

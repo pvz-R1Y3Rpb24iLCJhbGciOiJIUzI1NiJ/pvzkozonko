@@ -3,174 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Kozonko · Сегодня</title>
+<title>Kozonko</title>
 <link rel="icon" href="../favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Onest:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../app/app.css?v=d9803b48">
 <!-- kz-core -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-<script src="../core/kz.js" data-role="admin" data-page="home"></script>
-<script src="claims-core.js"></script>
-<style>
-  .pvz-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-  .pvz{background:var(--kz-card);border:1px solid var(--kz-line);border-radius:16px;padding:14px 16px;display:grid;gap:8px;min-width:0}
-  .pvz.late{border-color:var(--kz-crit);box-shadow:inset 3px 0 0 var(--kz-crit)}
-  .pvz-top{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
-  .pvz-name{font-weight:650;line-height:1.3;overflow-wrap:anywhere}
-  .pvz-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--kz-muted)}
-  .who{display:flex;align-items:center;gap:8px;font-size:14px}
-  .av{width:26px;height:26px;border-radius:50%;background:var(--kz-accent-soft);color:var(--kz-accent);display:grid;place-items:center;font-size:11px;font-weight:700;overflow:hidden;flex:none}
-  .av img{width:100%;height:100%;object-fit:cover}
-  .links a.kz-card{gap:4px}
-  .links .t{font-weight:650}
-  .bot{display:flex;align-items:center;gap:8px}
-  .led{width:9px;height:9px;border-radius:50%;background:var(--kz-muted)}
-  .led.ok{background:var(--kz-ok)}.led.crit{background:var(--kz-crit)}
-  .sk{color:var(--kz-muted)}
-</style>
+<script src="../core/kz.js?v=dbc57faa" data-role="admin" data-page="app" data-nav="off"></script>
 </head>
-<body class="kz-page">
-<main class="kz-wrap">
-  <header style="display:grid;gap:6px">
-    <span class="kz-eyebrow" id="today-label">Сегодня</span>
-    <h1 class="kz-h1">Пункты и смены</h1>
-    <p class="kz-sub" id="sub">Загружаю данные…</p>
-  </header>
-
-  <section class="kz-bento" aria-label="Сводка">
-    <div class="kz-card c3 is-ok" id="t-open"><span class="kz-eyebrow">Смены открыты</span><div class="kz-num">—</div><span class="kz-small kz-muted">из пунктов, где рабочий день начался</span></div>
-    <div class="kz-card c3" id="t-late"><span class="kz-eyebrow">Не открыты вовремя</span><div class="kz-num">—</div><span class="kz-small kz-muted">больше 15 минут после начала</span></div>
-    <a class="kz-card c3 is-warn" id="t-ded" href="deductions.html"><span class="kz-eyebrow">Удержания к выплате</span><div class="kz-num">—</div><span class="kz-small kz-muted">учтённые, ещё не списанные</span></a>
-    <a class="kz-card c3 is-acc" id="t-claims" href="deductions.html#claims"><span class="kz-eyebrow">Претензии без ответственного</span><div class="kz-num">—</div><span class="kz-small kz-muted">за текущий месяц</span></a>
-  </section>
-
-  <section style="display:grid;gap:12px" aria-labelledby="h-pvz">
-    <div class="kz-row"><h2 class="kz-h2" id="h-pvz">Пункты</h2><span class="kz-spacer"></span>
-      <span class="bot kz-small"><span class="led" id="bot-led"></span><span id="bot-txt" class="kz-muted">jobparc: нет данных</span></span></div>
-    <div class="pvz-list" id="pvz-list"><div class="kz-empty">Загружаю пункты…</div></div>
-  </section>
-
-  <section style="display:grid;gap:12px" aria-labelledby="h-links">
-    <h2 class="kz-h2" id="h-links">Разделы</h2>
-    <div class="kz-bento links">
-      <a class="kz-card c4" href="schedule.html"><span class="t">График и табель</span><span class="kz-small kz-muted">Смены по пунктам, зарплаты, удержания в табеле</span></a>
-      <a class="kz-card c4" href="employees.html"><span class="t">Сотрудники</span><span class="kz-small kz-muted">Реестр, ставки, реквизиты, пароли личного кабинета</span></a>
-      <a class="kz-card c4" href="pvz.html"><span class="t">Пункты</span><span class="kz-small kz-muted">Адреса, часы работы, часовой пояс, чаты VK</span></a>
-      <a class="kz-card c3" href="deductions.html"><span class="t">Удержания</span><span class="kz-small kz-muted">Все удержания и претензии в одном месте</span></a>
-      <a class="kz-card c3" href="claims.html"><span class="t">Претензии</span><span class="kz-small kz-muted">Ozon, WB, Яндекс: обработка и оспаривание</span></a>
-      <a class="kz-card c3" href="panel.html"><span class="t">Админка ПВЗ</span><span class="kz-small kz-muted">Расходники, баннеры, бонусы, финансы, камеры</span></a>
-      <a class="kz-card c3" href="../returns_dashboard.html"><span class="t">Возвраты</span><span class="kz-small kz-muted">Сборка возвратов Ozon по пунктам</span></a>
-    </div>
-  </section>
-</main>
-
-<script>
-(function(){
-  'use strict';
-  const db = KZ.db();
-  const MS_DAY = 86400000;
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const rub = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Math.round(n)) + ' ₽';
-
-  // Время МСК независимо от часового пояса компьютера
-  function mskNow(){ const d = new Date(); return new Date(d.getTime() + (d.getTimezoneOffset() + 180) * 60000); }
-  const pad = n => String(n).padStart(2,'0');
-  const now = mskNow();
-  const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
-  const ym = today.slice(0,7);
-  const nowMin = now.getHours()*60 + now.getMinutes();
-  document.getElementById('today-label').textContent =
-    now.toLocaleDateString('ru-RU',{weekday:'long', day:'numeric', month:'long'}) + ` · ${pad(now.getHours())}:${pad(now.getMinutes())} МСК`;
-
-  // «МСК+2» → 120 минут; часы работы указаны в местном времени пункта
-  const tzOffset = tz => { const m = String(tz||'').match(/([+-−])\s*(\d+)/); return m ? (m[1]==='+'?1:-1) * Number(m[2]) * 60 : 0; };
-  const toMin = t => { const m = String(t||'').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1])*60 + Number(m[2]) : null; };
-
-  function initials(e){ return (e?.fullName||e?.name||'?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
-  function avatar(e){ return e?.avatarUrl ? `<span class="av"><img src="${esc(e.avatarUrl)}" alt=""></span>` : `<span class="av">${esc(initials(e))}</span>`; }
-
-  async function load(){
-    await KZ.ready;
-    const [pvzSnap, empSnap, health] = await Promise.all([
-      db.ref('/supplies/pvz_list').once('value'),
-      db.ref('/appData/employees').once('value'),
-      db.ref('/system/health').once('value')
-    ]);
-    const pvzs = Object.values(pvzSnap.val() || {}).filter(p => p && p.pvz_id && p.pvz_id !== '88888888');
-    const empRaw = empSnap.val() || [];
-    const emps = (Array.isArray(empRaw) ? empRaw : Object.values(empRaw)).filter(Boolean);
-    const byId = Object.fromEntries(emps.map(e => [e.id, e]));
-
-    const days = await Promise.all(pvzs.map(p => Promise.all([
-      db.ref(`/appData/tabs/${p.pvz_id}/monthData/${ym}/openCloseEvents/${today}`).once('value'),
-      db.ref(`/appData/tabs/${p.pvz_id}/monthData/${ym}/assignments/${today}`).once('value')
-    ]).then(([ev, as]) => ({ ev: ev.val() || {}, as: as.val() || {} }))));
-
-    let started = 0, opened = 0, late = 0;
-    const cards = pvzs.map((p, i) => {
-      const { ev, as } = days[i];
-      const off = tzOffset(p.timezone);
-      const openMsk = (toMin(p.open_time) ?? 540) - off, closeMsk = (toMin(p.close_time) ?? 1260) - off;
-      const isStarted = nowMin >= openMsk;
-      const isLate = isStarted && nowMin < closeMsk && !ev.open && nowMin - openMsk > 15;
-      if (isStarted) started++;
-      if (ev.open) opened++;
-      if (isLate) late++;
-      let pill;
-      if (ev.close) pill = `<span class="kz-pill">Закрыт ${esc(ev.close.time === 'auto' ? 'авто' : String(ev.close.time).slice(0,5))}</span>`;
-      else if (ev.open) pill = `<span class="kz-pill ok">Открыт ${esc(String(ev.open.time).slice(0,5))}</span>`;
-      else if (isLate) pill = `<span class="kz-pill crit">Не открыт</span>`;
-      else pill = `<span class="kz-pill">${isStarted ? 'Не открыт' : 'Откроется ' + esc(p.open_time || '')}</span>`;
-      const who = [as.employeeId, as.second?.employeeId].filter(Boolean).map(id => byId[id]);
-      const whoHtml = who.length
-        ? who.map(e => `<span class="who">${avatar(e)}${esc(e?.fullName || e?.name || 'Сотрудник')}</span>`).join('')
-        : `<span class="who sk">В графике никого</span>`;
-      const counts = ['ozon','wb','yandex','avito'].filter(m => ev[m + '_received_count'] != null)
-        .map(m => `${({ozon:'Ozon',wb:'WB',yandex:'Яндекс',avito:'Авито'})[m]} ${ev[m + '_received_count']}`).join(' · ');
-      return `<article class="pvz${isLate ? ' late' : ''}">
-        <div class="pvz-top"><span class="pvz-name">${esc(p.public_name || p.pvz_name)}</span>${pill}</div>
-        ${whoHtml}
-        <div class="pvz-meta"><span>${esc(p.open_time || '?')}–${esc(p.close_time || '?')} ${esc(p.timezone || '')}</span>${counts ? `<span>Приёмка: ${esc(counts)}</span>` : ''}</div>
-      </article>`;
-    });
-    // сначала проблемные, затем открытые
-    const order = cards.map((html, i) => ({ html, w: html.includes(' late') ? 0 : days[i].ev.open && !days[i].ev.close ? 1 : 2 }));
-    order.sort((a, b) => a.w - b.w);
-    document.getElementById('pvz-list').innerHTML = order.map(x => x.html).join('') || '<div class="kz-empty">Пунктов нет</div>';
-
-    const tOpen = document.getElementById('t-open');
-    tOpen.querySelector('.kz-num').textContent = `${opened} / ${started}`;
-    const tLate = document.getElementById('t-late');
-    tLate.querySelector('.kz-num').textContent = late;
-    tLate.classList.toggle('is-crit', late > 0);
-    tLate.classList.toggle('is-ok', late === 0);
-
-    // Удержания: учтённые к ближайшей выплате
-    const rows = ClaimsCore.ledgerRows(empRaw);
-    const due = rows.filter(r => r.state === 'active' && r.kind === 'deduction' && r.accounted);
-    document.querySelector('#t-ded .kz-num').textContent = rub(due.reduce((s, r) => s + (r.amount || 0), 0));
-    document.querySelector('#t-ded .kz-small').textContent = `${due.length} записей · учтены, ещё не списаны`;
-
-    // Претензии текущего месяца без ответственного
-    db.ref('/claims').once('value').then(s => {
-      const list = ClaimsCore.normalizeClaims(s.val() || {})
-        .filter(c => String(c.data.claim_date || c.data.created_at || c.data.checked_at || '').slice(0, 7) === ym)
-        .filter(c => !c.data.responsibility?.employee_id);
-      document.querySelector('#t-claims .kz-num').textContent = list.length;
-    }).catch(() => { document.querySelector('#t-claims .kz-num').textContent = '—'; });
-
-    const h = health.val() || {};
-    const ts = h.jobparc?.ts, led = document.getElementById('bot-led'), txt = document.getElementById('bot-txt');
-    if (ts) {
-      const ago = Math.round((Date.now() - ts) / 60000);
-      led.className = 'led ' + (ago <= 3 ? 'ok' : 'crit');
-      txt.textContent = ago <= 3 ? 'jobparc работает' : `jobparc молчит ${ago} мин`;
-    } else { txt.textContent = 'jobparc: отметка появится после обновления бота'; }
-
-    document.getElementById('sub').textContent = `${pvzs.length} пунктов · ${emps.filter(e => !e.hidden).length} сотрудников в графике`;
-  }
-  load().catch(e => { document.getElementById('sub').textContent = 'Не удалось загрузить: ' + (e.message || e); console.error(e); });
-})();
-</script>
+<body class="app">
+<div id="app"></div>
+<script type="importmap">{"imports": {"../app/app.js": "../app/app.js?v=0b8cf16e", "../app/data.js": "../app/data.js?v=7648ca74", "../app/s-claims.js": "../app/s-claims.js?v=28ca050c", "../app/s-embed.js": "../app/s-embed.js?v=70d095f8", "../app/s-logs.js": "../app/s-logs.js?v=9b58f9bb", "../app/s-people.js": "../app/s-people.js?v=ad4a854e", "../app/s-pvz.js": "../app/s-pvz.js?v=c154d6d7", "../app/s-supplies.js": "../app/s-supplies.js?v=cff43341", "../app/s-today.js": "../app/s-today.js?v=d8df1ab7", "../app/ui.js": "../app/ui.js?v=adc664ff"}}</script>
+<script type="module" src="../app/app.js?v=0b8cf16e"></script>
 </body>
 </html>
