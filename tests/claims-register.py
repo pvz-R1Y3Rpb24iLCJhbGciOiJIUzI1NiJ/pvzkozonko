@@ -24,9 +24,11 @@ FIXTURE = '''async () => {
     },
   })})};
   const {default: screen} = await import('/app/s-claims.js');
-  await screen.render(document.querySelector('#app'), {params:['all'], setHeader({actions}) {
+  const render = () => screen.render(document.querySelector('#app'), {params:location.hash.split('/').slice(1), go(hash){location.hash=hash}, setHeader({actions}) {
     if (actions) document.querySelector('header').innerHTML = actions;
   }});
+  addEventListener('hashchange', render);
+  await render();
 }'''
 
 with sync_playwright() as p:
@@ -48,13 +50,20 @@ with sync_playwright() as p:
         page.route('**/*', serve)
         page.goto('https://kozonko.test/admin/#claims/all')
         page.evaluate(FIXTURE)
-        expect(page.locator('#f-n')).to_contain_text('1\u202f212', timeout=1300)
+        expect(page.locator('#f-source')).to_contain_text('1\u202f212', timeout=1300)
+        expect(page.locator('#f-n')).to_contain_text('806 найдено', timeout=1300)
         expect(page.locator('#tb [data-key]')).to_have_count(50)
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), width
         if width != 768:
+            page.get_by_role('tab', name='Архив', exact=True).click()
+            expect(page.locator('#f-n')).to_contain_text('405 найдено')
             page.get_by_role('button', name='Последняя страница').click()
-            expect(page.locator('#tb [data-key]')).to_have_count(12)
+            expect(page.locator('#tb [data-key]')).to_have_count(5)
             expect(page.locator('#tb [data-key="ozon:80001"]')).to_contain_text('Оплачено')
+            page.get_by_role('tab', name='На рассмотрении', exact=True).click()
+            expect(page.locator('#tb [data-key="yandex:YM1"]')).to_be_visible()
+            page.get_by_role('tab', name='Нужен ответ', exact=True).click()
+            expect(page.locator('#f-n')).to_contain_text('806 найдено')
             page.locator('#f-q').fill('90002')
             expect(page.locator('#tb [data-key]')).to_have_count(1)
             row = page.locator('#tb [data-key="ozon:90002"]')

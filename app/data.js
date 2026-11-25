@@ -143,6 +143,16 @@ export async function addDeduction({ employeeId, pvzId, pvzName, shiftDate, deci
 // ── Претензии: все источники в одном списке ──
 const CLOSED = /cancel|отмен|аннулир|paid|оплач|закрыт|resolved|решен|отклон|возмещ/i;
 export const INTERNAL = { new: 'Новая', in_progress: 'В работе', processed: 'Решена', disputed: 'Оспаривается', closed: 'Закрыта' };
+const RESPONSE_REQUIRED = /^(ожидает ответа|требуется ответ|нужен ответ|response_required|awaiting_response)$/i;
+export const claimSection = c => c.closed ? 'archive' : RESPONSE_REQUIRED.test(c.ext) ? 'all' : 'review';
+export function byResponseDue(now = Date.now()) {
+  const deadline = c => c.deadlineMs ?? (c.deadline ? Date.parse(`${c.deadline}T00:00:00+03:00`) + 86400000 : NaN);
+  const group = at => !Number.isFinite(at) ? 2 : at <= now ? 1 : 0;
+  return (a, b) => {
+    const at = deadline(a), bt = deadline(b), ga = group(at), gb = group(bt);
+    return ga - gb || (ga === 0 ? at - bt : ga === 1 ? bt - at : 0);
+  };
+}
 const OZON_STATUS = {
   GRPC_CLAIM_STATUS_RESPONSE_REQUIRED: 'Ожидает ответа',
   GRPC_CLAIM_STATUS_ON_REVIEW: 'На рассмотрении',
@@ -151,6 +161,7 @@ const OZON_STATUS = {
   GRPC_CLAIM_STATUS_CANCELLED: 'Аннулировано',
   GRPC_CLAIM_STATUS_WITHHOLDING: 'Удержание'
 };
+const WB_STATUS = { withheld: 'Удержано', won: 'Оспорено', in_ticket: 'На рассмотрении' };
 const moscowDay = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' });
 function ozonInstant(value) {
   const s = String(value ?? '').trim();
@@ -165,19 +176,21 @@ export async function claims(opts) {
     if (!v || typeof v !== 'object') return;
     const key = mp + ':' + id;
     const prev = map.get(key);
-    if (prev) { prev.paths.push(path); prev.data = { ...v, ...prev.data }; return; }   // первая запись главная
-    map.set(key, { mp, id, path, paths: [path], data: v });
+    const status = [v.marketplace_status, v.ozon_status, v.status].map(s => String(s ?? '').trim()).find(Boolean) || '';
+    if (prev) { prev.paths.push(path); prev.data = { ...v, ...prev.data }; prev.status ||= status; return; }   // первая запись главная
+    map.set(key, { mp, id, path, paths: [path], status, data: v });
   };
   for (const [id, v] of Object.entries(raw)) if (/^\d+$/.test(id)) put('ozon', id, v, `/claims/${id}`);
   for (const [id, v] of Object.entries(raw.ozon || {})) put('ozon', id, v, `/claims/ozon/${id}`);
   for (const [id, v] of Object.entries(raw.wb?.active || {})) put('wb', id, v, `/claims/wb/active/${id}`);
   for (const [id, v] of Object.entries(raw.yandex?.active || {})) put('yandex', id, v, `/claims/yandex/active/${id}`);
   for (const [id, v] of Object.entries(raw.ozon_checks?.active || {})) put('check', id, v, `/claims/ozon_checks/active/${id}`);
-  return [...map.values()].map(({ mp, id, path, paths, data: c }) => {
-    const status = String(c.ozon_status || c.marketplace_status || c.status || '').trim();
-    const ext = mp === 'ozon' ? OZON_STATUS[status] || status : status;
+  return [...map.values()].map(({ mp, id, path, paths, status, data: c }) => {
+    const labels = mp === 'ozon' ? OZON_STATUS : mp === 'wb' ? WB_STATUS : {};
+    const ext = Object.hasOwn(labels, status) ? labels[status] : status;
     const internal = c.processing?.status || (c.responsibility?.kind ? 'processed' : 'new');
-    const closed = internal === 'closed' || internal === 'processed' || CLOSED.test(ext);
+    const closed = ['closed', 'processed', 'cancelled'].includes(internal) || !!c.responsibility?.kind || CLOSED.test(ext)
+      || (mp === 'wb' && ['withheld', 'won'].includes(status));
     const deadlineValue = c.deadline_at || c.deadline_date;
     const deadlineMs = mp === 'ozon' ? ozonInstant(deadlineValue) : null;
     return {
@@ -210,18 +223,21 @@ export function normDate(x) {
 export const MP = { ozon: 'Ozon', wb: 'WB', yandex: 'Яндекс', check: 'Проверка Ozon', avito: 'Авито' };
 
 // Подобрать пункт: сначала по запомненным кодам ТурбоПВЗ (pvz_list/{id}/ozon_codes), затем по словам адреса
-const tokens = s => String(s || '').toLowerCase().split(/[^a-zа-яё0-9_]+/i).filter(w => w.length > 2 && !/^(ул|улица|нижний|новгород|нижний_новгород|пос|город|ozon|wildberries|пр|д)$/.test(w));
+const tokens = s => (String(s || '').toLowerCase().replace(/ё/g, 'е').match(/[a-zа-я]+|\d+/g) || [])
+  .filter(w => !/^(ул|улица|нижний|новгород|пос|город|ozon|wildberries|пр|д|дом)$/.test(w));
 export function matchPvz(text, pvzs, code) {
   const c = String(code || '').trim().toUpperCase();
-  if (c) { const hit = pvzs.find(p => p.ozon_codes && p.ozon_codes[c]); if (hit) return { pvz: hit, how: 'code' }; }
-  const t = String(text || '').toLowerCase();
-  if (!t.trim()) return null;
-  let best = null, score = 0;
-  for (const p of pvzs) {
-    const s = tokens(`${p.public_name} ${p.pvz_name} ${p.tabName}`).filter(w => t.includes(w)).length;
-    if (s > score) { score = s; best = p; }
+  if (c) {
+    const hits = pvzs.filter(p => p.ozon_codes && Object.hasOwn(p.ozon_codes, c) && p.ozon_codes[c]);
+    if (hits.length) return hits.length === 1 ? { pvz: hits[0], how: 'code' } : null;
   }
-  return score ? { pvz: best, how: 'address' } : null;
+  const query = tokens(text);
+  if (!query.some(w => /^[a-zа-я]{3,}$/.test(w))) return null;
+  const hits = pvzs.filter(p => [p.public_name, p.pvz_name, p.tabName].some(label => {
+    const address = tokens(label);
+    return query.every(w => address.includes(w));
+  }));
+  return hits.length === 1 ? { pvz: hits[0], how: 'address' } : null;
 }
 // Запомнить, что код ТурбоПВЗ относится к пункту (ключи Firebase не допускают . # $ [ ] /)
 export async function rememberCode(pvzId, code) {

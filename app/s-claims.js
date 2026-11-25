@@ -4,12 +4,13 @@ import { esc, icon, avatar, empName, rub, plural, drawer, toast, formData, today
 import * as D from './data.js';
 import { renderRegister } from './claims-register.js';
 
-const TABS = [['', 'Ждут решения'], ['all', 'Все претензии'], ['ledger', 'Удержания']];
+const TABS = [['all', 'Нужен ответ'], ['review', 'На рассмотрении'], ['archive', 'Архив'], ['ledger', 'Удержания']];
 const ST = { due: ['К выплате', 'lav'], pending: ['Не учтено', 'warn'], written: ['Списано', 'ok'] };
 
 export default {
   async render(view, { params, setHeader, go, refreshBadges }) {
-    const tab = TABS.some(t => t[0] === params[0]) ? params[0] : '';
+    const knownTab = TABS.some(t => t[0] === params[0]);
+    const tab = knownTab ? params[0] : 'all';
     // перерисовать раздел с новыми данными (тот же адрес не вызывает hashchange сам)
     const rerender = target => { if (location.hash === target || (target === '#claims' && !location.hash.startsWith('#claims/'))) window.dispatchEvent(new HashChangeEvent('hashchange')); else go(target); };
     setHeader({
@@ -23,7 +24,7 @@ export default {
     const empById = Object.fromEntries(emps.map(e => [e.id, e]));
     const rows = D.ledger(emps, pvzName, shiftPvz);
     const today = todayMsk(), since = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
-    const queue = claims.filter(c => !c.closed && !c.resp?.kind && c.date >= since).sort((a, b) => (a.deadline || '9').localeCompare(b.deadline || '9'));
+    const queue = claims.filter(c => D.claimSection(c) === 'all' && c.date >= since);
     const due = rows.filter(r => r.status === 'due');
     const ym = today.slice(0, 7);
     const solvedMonth = claims.filter(c => c.resp?.confirmed_at?.slice(0, 7) === ym || (c.raw.processing?.completed_at || '').slice(0, 7) === ym);
@@ -37,9 +38,9 @@ export default {
     const byMonth = mKeys.map(k => rows.filter(r => (r.shift || '').startsWith(k)).reduce((x, r) => x + r.amount, 0));
     const dueEmps = [...new Set(due.map(r => r.empId))].map(id => empById[id]);
     view.innerHTML = `
-      ${tab === 'all' ? '' : `<section class="bento">
+      ${tab !== 'ledger' ? '' : `<section class="bento">
         <a class="tile coral s4" href="#claims">
-          <div class="tile-head"><span class="icon-circle">${icon('claims')}</span><span class="label">Ждут решения</span></div>
+          <div class="tile-head"><span class="icon-circle">${icon('claims')}</span><span class="label">Нужен ответ</span></div>
           <span class="huge">${queue.length}</span>
           <span class="note">${rub(queue.reduce((x, c) => x + c.sum, 0))} за 60 дней</span>
           ${urgent.length ? `<span class="float-pill" style="right:18px;bottom:18px">🔥 ${urgent.length} ${plural(urgent.length, 'срочная', 'срочные', 'срочных')}</span>` : ''}
@@ -56,32 +57,15 @@ export default {
             <span class="note">${disputed.length ? `${disputed.length} в споре на ${rub(disputed.reduce((x, c) => x + c.sum, 0))}` : 'споров нет'} · решено в этом месяце: ${solvedMonth.length}</span></div>
         </div>
       </section>`}
-      <div class="row"><div class="seg" role="tablist">${TABS.map(([k, n]) => `<button role="tab" data-t="${k}" aria-pressed="${k === tab}">${n}${k === '' ? `<span class="cnt">${queue.length}</span>` : ''}</button>`).join('')}</div></div>
+      <div class="row"><div class="seg" role="tablist">${TABS.map(([k, n]) => `<button role="tab" data-t="${k}" aria-pressed="${k === tab}" aria-selected="${k === tab}">${n}</button>`).join('')}</div></div>
       <div id="pane"></div>`;
     view.querySelector('.seg').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) go('#claims' + (b.dataset.t ? '/' + b.dataset.t : '')); });
     document.getElementById('ded-manual').onclick = () => manualDeduction();
     const pane = view.querySelector('#pane');
 
-    if (tab === '') renderQueue(); else if (tab === 'all') renderRegister(pane, claims, { openClaim, decisionChip }); else renderLedger();
-    const openKey = tab === '' ? params[0] : params[1];
+    if (tab === 'ledger') renderLedger(); else renderRegister(pane, claims, { openClaim, decisionChip, section: tab });
+    const openKey = knownTab ? params[1] : params[0];
     if (openKey && openKey.includes(':')) { const c = claims.find(x => x.key === openKey); if (c) openClaim(c); }
-
-    // ── очередь ──
-    function renderQueue() {
-      pane.innerHTML = queue.length ? `<div class="cards">${queue.map(card).join('')}</div>`
-        : `<div class="tile lime"><span class="label">Очередь пуста</span><span class="big" style="font-size:30px">Все претензии разобраны</span><span class="note">Новые появятся здесь, как только скрипт в ТурбоПВЗ их сохранит</span></div>`;
-      pane.addEventListener('click', e => { const c = e.target.closest('[data-key]'); if (c) openClaim(claims.find(x => x.key === c.dataset.key)); });
-    }
-    function card(c) {
-      const left = c.deadline ? Math.ceil((new Date(c.deadline) - new Date(today)) / 86400000) : null;
-      const dl = left == null ? '' : left < 0 ? '<span class="chip crit">срок прошёл</span>' : left <= 3 ? `<span class="chip crit">${left} ${plural(left, 'день', 'дня', 'дней')}</span>` : `<span class="chip">до ${ruDate(c.deadline)}</span>`;
-      return `<button class="card${left != null && left <= 3 ? ' flag' : ''}" data-key="${esc(c.key)}">
-        <div class="row" style="flex-wrap:nowrap"><span class="chip ${c.mp === 'ozon' ? 'dark' : c.mp === 'wb' ? 'lav' : 'lime'}">${esc(D.MP[c.mp])}</span><span class="small muted">№${esc(c.id)}</span><span class="grow"></span>${dl}</div>
-        <div style="font-size:26px;font-weight:800;letter-spacing:-.02em" class="num">${c.sum ? rub(c.sum, true) : '—'}</div>
-        <div class="small" style="overflow-wrap:anywhere">${esc(c.product || c.reason || 'Без описания')}</div>
-        <div class="meta"><span>${esc(c.pvzText || 'Пункт не указан')}</span><span>${ruDate(c.date)}</span>${c.guessName ? `<span>Агент: ${esc(c.guessName)}</span>` : ''}</div>
-      </button>`;
-    }
 
 
     function decisionChip(c) {
@@ -89,13 +73,15 @@ export default {
       if (c.resp?.kind === 'company') return '<span class="chip">за счёт компании</span>';
       if (c.internal === 'disputed') return '<span class="chip warn">оспариваем</span>';
       if (c.closed) return '<span class="chip ok">закрыта</span>';
-      return '<span class="chip crit">ждёт</span>';
+      if (D.claimSection(c) === 'all') return '<span class="chip crit">ждёт ответа</span>';
+      return c.ext === 'На рассмотрении' ? '' : '<span class="chip warn">Требует сверки</span>';
     }
 
     // ── карточка претензии ──
     async function openClaim(c) {
       if (!c) return;
-      const guess = D.matchPvz(c.pvzText, pvzs.filter(p => !p.test));
+      const points = pvzs.filter(p => !p.test);
+      const guess = D.matchPvz(c.pvzText, points, c.mp === 'ozon' ? c.pvzCode : '');
       const shiftDate = c.eventDate || c.date || today;
       const hist = Object.values(c.raw.history || {}).filter(h => h && (h.text || h.type)).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
       const left = c.deadlineMs !== null ? (c.deadlineMs <= Date.now() ? -1 : Math.ceil((c.deadlineMs - Date.now()) / 86400000)) : c.deadline ? Math.ceil((new Date(c.deadline) - new Date(todayMsk())) / 86400000) : null;
@@ -120,7 +106,7 @@ export default {
           <form class="box" id="dec" autocomplete="off">
             <b>Кто отвечает</b>
             <div class="fields">
-              <label class="field"><span>Пункт</span><select class="select" name="pvzId"><option value="">— выберите —</option>${pvzs.filter(p => !p.test).map(p => `<option value="${esc(p.id)}" ${guess?.id === p.id ? 'selected' : ''}>${esc(D.pvzTitle(p))}</option>`).join('')}</select>${guess ? '<span class="hint">Подобран по адресу из претензии</span>' : ''}</label>
+              <label class="field"><span>Пункт</span><select class="select" name="pvzId"><option value="">— выберите —</option>${points.map(p => `<option value="${esc(p.id)}" ${guess?.pvz.id === p.id ? 'selected' : ''}>${esc(D.pvzTitle(p))}</option>`).join('')}</select>${guess ? `<span class="hint">Подобран по ${guess.how === 'code' ? 'коду Ozon' : 'адресу из претензии'}</span>` : ''}</label>
               <label class="field"><span>Дата смены</span><input class="input" type="date" name="shiftDate" value="${esc(shiftDate)}"></label>
               <div class="field wide"><span>Работали в эту смену</span><div class="row" id="cands"><span class="muted small">Выберите пункт и дату</span></div></div>
               <label class="field"><span>Сотрудник</span><select class="select" name="employeeId"><option value="">— выберите —</option>${emps.filter(e => !e.hidden).sort((a, b) => empName(a).localeCompare(empName(b), 'ru')).map(e => `<option value="${esc(e.id)}">${esc(empName(e))}</option>`).join('')}</select></label>

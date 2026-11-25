@@ -1,5 +1,5 @@
 import { esc, icon, rub, ruDate, todayMsk } from './ui.js';
-import { claims, MP, INTERNAL } from './data.js';
+import { claims, MP, INTERNAL, claimSection, byResponseDue } from './data.js';
 
 const SIZE = 50;
 const OZON = 'https://turbo-pvz.ozon.ru/claims/claims/list/in-progress';
@@ -8,13 +8,13 @@ const stamp = new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', date
 const keys = new Intl.Collator('ru', { numeric: true });
 const sortBy = {
   date: (a, b) => b.date.localeCompare(a.date),
-  deadline: (a, b) => (a.deadline || '9').localeCompare(b.deadline || '9') || (a.deadlineMs ?? Infinity) - (b.deadlineMs ?? Infinity),
   amount: (a, b) => b.sum - a.sum,
   reason: (a, b) => (a.reason || '\uffff').localeCompare(b.reason || '\uffff', 'ru')
 };
 
-export function renderRegister(pane, initial, { openClaim, decisionChip }) {
+export function renderRegister(pane, initial, { openClaim, decisionChip, section }) {
   let registry = initial, page = 1, pending = false, visible = [];
+  const actionable = section === 'all';
   pane.innerHTML = `<section class="claim-reg" aria-labelledby="claim-reg-title">
     <div class="claim-reg-head"><div><h2 id="claim-reg-title">Реестр претензий</h2><p class="claim-reg-meta" id="f-source"></p></div>
       <div class="claim-reg-actions"><button class="btn" id="f-refresh">Обновить реестр</button><a class="btn claim-reg-primary" href="${OZON}" target="_blank" rel="noopener" aria-describedby="f-how">Открыть Турбо ПВЗ ↗</a></div></div>
@@ -22,8 +22,7 @@ export function renderRegister(pane, initial, { openClaim, decisionChip }) {
     <p class="claim-reg-how" id="f-msg" role="status" hidden></p>
     <div class="claim-reg-filters"><label class="search">${icon('search')}<input class="input" id="f-q" aria-label="Поиск по претензиям" type="search" placeholder="Номер, ПВЗ, причина, товар"></label>
       <select class="select" id="f-mp" aria-label="Площадка"><option value="">Все площадки</option>${Object.entries(MP).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select>
-      <select class="select" id="f-st" aria-label="Статус"><option value="">Все статусы</option><option value="open">Открытые</option><option value="done">Закрытые и решённые</option>${Object.entries(INTERNAL).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select>
-      <select class="select" id="f-sort" aria-label="Сортировка"><option value="date">Сначала новые</option><option value="deadline">По сроку ответа</option><option value="amount">По сумме ↓</option><option value="reason">По причине</option></select></div>
+      ${actionable ? '<select class="select" id="f-sort" aria-label="Сортировка"><option value="deadline">По сроку ответа</option><option value="date">Сначала новые</option><option value="amount">По сумме ↓</option><option value="reason">По причине</option></select>' : ''}</div>
     <div class="claim-reg-summary"><span id="f-n" role="status"></span><span id="f-range"></span></div>
     <table class="claim-reg-table" role="table"><thead><tr><th scope="col">Претензия</th><th scope="col">ПВЗ</th><th scope="col">Причина / поток</th><th scope="col" class="claim-reg-money">Сумма</th><th scope="col">Срок ответа</th><th scope="col">Статус / решение</th></tr></thead><tbody id="tb" role="rowgroup"></tbody></table>
     <div id="f-empty" class="claim-reg-empty" hidden>По этим фильтрам ничего не найдено.</div>
@@ -40,6 +39,7 @@ export function renderRegister(pane, initial, { openClaim, decisionChip }) {
       <td class="cr-status" role="cell"><span class="cr-ext">${esc(c.ext || INTERNAL[c.internal] || '—')}</span>${decisionChip(c)}</td>
     </tr>`;
   const updateUrgency = () => {
+    if (!actionable) return;
     const now = Date.now(), today = todayMsk();
     for (const [i, c] of visible.entries()) {
       const cell = table.rows[i].querySelector('.cr-deadline'), label = cell.querySelector('small');
@@ -51,11 +51,11 @@ export function renderRegister(pane, initial, { openClaim, decisionChip }) {
     }
   };
   const draw = () => {
-    const mp = el('#f-mp').value, st = el('#f-st').value;
+    const mp = el('#f-mp').value;
     const q = el('#f-q').value.trim().replace(/^№\s*/, '').toLowerCase();
-    const order = sortBy[el('#f-sort').value];
-    const found = registry.filter(c => (!mp || c.mp === mp)
-      && (!st || (st === 'open' ? !c.closed : st === 'done' ? c.closed : c.internal === st))
+    const sort = el('#f-sort')?.value || 'date';
+    const order = sort === 'deadline' ? byResponseDue() : sortBy[sort];
+    const found = registry.filter(c => claimSection(c) === section && (!mp || c.mp === mp)
       && (!q || `${c.id} ${c.pvzText} ${c.pvzCode} ${c.product} ${c.reason} ${c.flow}`.toLowerCase().includes(q)));
     found.sort((a, b) => order(a, b) || sortBy.date(a, b) || keys.compare(b.key, a.key));
     const max = Math.max(1, Math.ceil(found.length / SIZE));
@@ -78,7 +78,8 @@ export function renderRegister(pane, initial, { openClaim, decisionChip }) {
     el('#f-source').textContent = `${num.format(registry.length)} в базе · ${last ? `Последняя запись из Ozon: ${stamp.format(last)} МСК` : 'Нет отметки о выгрузке Ozon'}`;
   };
   const filter = () => { page = 1; draw(); };
-  for (const id of ['#f-mp', '#f-st', '#f-sort']) el(id).onchange = filter;
+  el('#f-mp').onchange = filter;
+  if (actionable) el('#f-sort').onchange = filter;
   el('#f-q').oninput = filter;
   el('#f-page').onchange = e => { page = Math.trunc(e.target.valueAsNumber) || 1; draw(); };
   nav.onclick = e => {
@@ -103,5 +104,7 @@ export function renderRegister(pane, initial, { openClaim, decisionChip }) {
   };
   meta();
   draw();
-  const timer = setInterval(() => table.isConnected ? updateUrgency() : clearInterval(timer), 15_000);
+  if (actionable) {
+    const timer = setInterval(() => table.isConnected ? updateUrgency() : clearInterval(timer), 15_000);
+  }
 }
