@@ -235,3 +235,46 @@ table.t td.r,table.t th.r{text-align:right;font-variant-numeric:tabular-nums;whi
 .pvz-card .nums{display:flex;gap:18px;font-size:12px;color:var(--muted);font-weight:600}
 .pvz-card .nums b{display:block;font-size:20px;letter-spacing:-.02em;color:var(--ink)}
 .tile-head{display:flex;align-items:center;gap:12px}
+
+/* Claims register: one responsive surface; the same rows on phone and desktop. */
+.claim-reg{--cr-blue:#1649b8;--cr-border:#dce5f1;--cr-muted:#52637c;min-width:0;background:#fff;border:1px solid var(--cr-border);border-radius:18px;color:#192a44}
+.claim-reg [hidden]{display:none}
+.claim-reg-head{padding:20px 22px 8px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#f7faff;border-radius:18px 18px 0 0}
+.claim-reg-head h2{font-size:25px;line-height:1.2;margin:0 0 5px;letter-spacing:-.025em}
+.claim-reg-meta,.claim-reg-how{font-size:13px;color:var(--cr-muted);margin:0}
+.claim-reg-how{padding:6px 22px 14px;background:#f7faff}
+.claim-reg-actions{display:flex;gap:8px;flex-wrap:wrap}
+.claim-reg-actions .btn,.claim-reg-pages .btn{border-radius:8px;min-height:42px}
+.claim-reg-actions .claim-reg-primary{background:var(--cr-blue);border-color:var(--cr-blue);color:white}
+.claim-reg-actions .claim-reg-primary:hover{background:#113b97;color:white}
+.claim-reg-filters{display:grid;grid-template-columns:minmax(160px,2fr) repeat(3,minmax(112px,1fr));gap:8px;padding:14px 22px;border-top:1px solid var(--cr-border)}
+.claim-reg-filters .input,.claim-reg-filters .select,.claim-reg-filters .search{width:100%;min-width:0;min-height:42px}
+.claim-reg-summary{padding:3px 22px 11px;color:var(--cr-muted);font-size:13px;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;scroll-margin-top:75px}
+.claim-reg-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:14px}
+.claim-reg-table th{background:#f7faff;color:var(--cr-muted);font-size:12px;font-weight:650;text-align:left}
+.claim-reg-table th,.claim-reg-table td{padding:10px 12px;border-top:1px solid #e8eef7;overflow-wrap:anywhere}
+.claim-reg-table th:nth-child(3){width:27%}.claim-reg-table th:nth-child(4),.claim-reg-table th:nth-child(5){width:12%}
+.claim-reg-table th:first-child,.claim-reg-table td:first-child{padding-inline-start:22px}
+.claim-reg-table tr:hover td{background:#fafcff}
+.claim-reg-table .claim-reg-money{text-align:right;white-space:nowrap}
+.claim-reg-table td small{display:block;font-size:12px;color:var(--cr-muted);line-height:1.4}
+.claim-reg-table .cr-product{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cr-open{color:var(--cr-blue);font:inherit;font-weight:750;cursor:pointer;background:none;border:0;padding:0;text-align:left;overflow-wrap:anywhere}
+.cr-open:hover{text-decoration:underline}
+.cr-ext{display:block;color:#263b5b}.cr-status .chip{margin-top:4px;white-space:normal}
+.cr-deadline{font-variant-numeric:tabular-nums}.cr-urgent,.claim-reg-table .cr-urgent small{color:#913320;font-weight:650}
+.claim-reg-pages{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;padding:14px 10px;border-top:1px solid var(--cr-border);font-size:13px}
+.claim-reg-pages .btn{min-width:42px;font-size:18px;padding:4px 8px}.claim-reg-pages label{white-space:nowrap}
+.claim-reg-pages input{width:62px;text-align:center;border-radius:8px}.claim-reg-empty{padding:28px 22px;text-align:center;color:var(--cr-muted)}
+@media(max-width:680px){
+  .claim-reg-head,.claim-reg-filters,.claim-reg-summary{padding-inline:14px}.claim-reg-how{padding-inline:14px}
+  .claim-reg-head h2{font-size:22px}.claim-reg-actions .btn{font-size:13px;min-height:44px;padding-inline:10px}
+  .claim-reg-filters{grid-template-columns:1fr 1fr}.claim-reg-filters .search{grid-column:1/-1}
+  .claim-reg-table,.claim-reg-table tbody{display:block}.claim-reg-table thead{position:absolute;clip-path:inset(50%);height:1px;width:1px;overflow:hidden}
+  .claim-reg-table tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;padding:10px 14px;border-top:1px solid #e8eef7}
+  .claim-reg-table td,.claim-reg-table td:first-child{padding:0;border:0;min-width:0}.claim-reg-table tr:hover td{background:transparent}
+  .cr-id{grid-column:1;grid-row:1}.cr-open{min-height:32px}.cr-amount{grid-column:2;grid-row:1;padding-top:5px!important;font-weight:750}
+  .cr-pvz,.cr-reason,.cr-status{grid-column:1/-1}.cr-deadline{grid-column:1/-1;font-size:13px}.cr-deadline time::before{content:'Ответ до ';color:var(--cr-muted)}
+  .cr-status{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px}.cr-status .chip{margin:0}
+  .claim-reg-pages .btn{min-width:37px;min-height:44px}.claim-reg-pages input{width:52px}
+}

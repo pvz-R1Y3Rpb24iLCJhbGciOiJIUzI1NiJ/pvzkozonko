@@ -143,6 +143,19 @@ export async function addDeduction({ employeeId, pvzId, pvzName, shiftDate, deci
 // ── Претензии: все источники в одном списке ──
 const CLOSED = /cancel|отмен|аннулир|paid|оплач|закрыт|resolved|решен|отклон|возмещ/i;
 export const INTERNAL = { new: 'Новая', in_progress: 'В работе', processed: 'Решена', disputed: 'Оспаривается', closed: 'Закрыта' };
+const OZON_STATUS = {
+  GRPC_CLAIM_STATUS_RESPONSE_REQUIRED: 'Ожидает ответа',
+  GRPC_CLAIM_STATUS_ON_REVIEW: 'На рассмотрении',
+  GRPC_CLAIM_STATUS_IN_PROGRESS: 'На рассмотрении',
+  GRPC_CLAIM_STATUS_WITHHOLDING: 'Удержание'
+};
+const moscowDay = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' });
+function ozonInstant(value) {
+  const s = String(value ?? '').trim();
+  const ms = typeof value === 'number' || /^\d{12,}$/.test(s) ? +s
+    : /^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:?\d{2})$/i.test(s) ? Date.parse(s) : null;
+  return ms !== null && Number.isFinite(ms) && !isNaN(new Date(ms)) ? ms : null;
+}
 export async function claims(opts) {
   const raw = (await load('/claims', opts)) || {};
   const map = new Map();
@@ -159,14 +172,18 @@ export async function claims(opts) {
   for (const [id, v] of Object.entries(raw.yandex?.active || {})) put('yandex', id, v, `/claims/yandex/active/${id}`);
   for (const [id, v] of Object.entries(raw.ozon_checks?.active || {})) put('check', id, v, `/claims/ozon_checks/active/${id}`);
   return [...map.values()].map(({ mp, id, path, paths, data: c }) => {
-    const ext = String(c.ozon_status || c.marketplace_status || c.status || '').trim();
+    const status = String(c.ozon_status || c.marketplace_status || c.status || '').trim();
+    const ext = mp === 'ozon' ? OZON_STATUS[status] || status : status;
     const internal = c.processing?.status || (c.responsibility?.kind ? 'processed' : 'new');
     const closed = internal === 'closed' || internal === 'processed' || CLOSED.test(ext);
+    const deadlineValue = c.deadline_at || c.deadline_date;
+    const deadlineMs = mp === 'ozon' ? ozonInstant(deadlineValue) : null;
     return {
       key: mp + ':' + id, mp, id, path, paths, raw: c,
       date: normDate(c.claim_date || c.created_date || c.created_at || c.checked_at || c.collected_at),
       eventDate: normDate(c.cancel_or_loss_date || c.event_date),
-      deadline: normDate(c.deadline_at || c.deadline_date),
+      deadline: deadlineMs === null ? normDate(deadlineValue) : moscowDay.format(deadlineMs), deadlineMs,
+      flow: String(c.claim_flow || c.flow || '').trim(),
       pvzCode: String(c.pvz_code || (/^[A-ZА-ЯЁ_0-9]+$/.test(String(c.pvz || '')) ? c.pvz : '') || '').trim(),
       sum: Number(c.amount ?? c.sum) || 0,
       pvzText: c.pvz_address || c.pvz || c.pvz_code || c.address || '',

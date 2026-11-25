@@ -2,6 +2,7 @@
 // Очередь: претензия → пункт и смена → кто работал → «Удержать» / «За счёт компании» / «Оспорить».
 import { esc, icon, avatar, empName, rub, plural, drawer, toast, formData, todayMsk, ruDate, bars, downloadCsv, MONTHS, confirmBox, ring, miniBars, stack, deco } from './ui.js';
 import * as D from './data.js';
+import { renderRegister } from './claims-register.js';
 
 const TABS = [['', 'Ждут решения'], ['all', 'Все претензии'], ['ledger', 'Удержания']];
 const ST = { due: ['К выплате', 'lav'], pending: ['Не учтено', 'warn'], written: ['Списано', 'ok'] };
@@ -36,7 +37,7 @@ export default {
     const byMonth = mKeys.map(k => rows.filter(r => (r.shift || '').startsWith(k)).reduce((x, r) => x + r.amount, 0));
     const dueEmps = [...new Set(due.map(r => r.empId))].map(id => empById[id]);
     view.innerHTML = `
-      <section class="bento">
+      ${tab === 'all' ? '' : `<section class="bento">
         <a class="tile coral s4" href="#claims">
           <div class="tile-head"><span class="icon-circle">${icon('claims')}</span><span class="label">Ждут решения</span></div>
           <span class="huge">${queue.length}</span>
@@ -54,14 +55,14 @@ export default {
           <div style="display:grid;gap:8px;min-width:0"><span class="label">За 60 дней</span><span class="big" style="font-size:40px">${dec30.length}<span style="opacity:.4">/${last30.length}</span></span>
             <span class="note">${disputed.length ? `${disputed.length} в споре на ${rub(disputed.reduce((x, c) => x + c.sum, 0))}` : 'споров нет'} · решено в этом месяце: ${solvedMonth.length}</span></div>
         </div>
-      </section>
+      </section>`}
       <div class="row"><div class="seg" role="tablist">${TABS.map(([k, n]) => `<button role="tab" data-t="${k}" aria-pressed="${k === tab}">${n}${k === '' ? `<span class="cnt">${queue.length}</span>` : ''}</button>`).join('')}</div></div>
       <div id="pane"></div>`;
     view.querySelector('.seg').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) go('#claims' + (b.dataset.t ? '/' + b.dataset.t : '')); });
     document.getElementById('ded-manual').onclick = () => manualDeduction();
     const pane = view.querySelector('#pane');
 
-    if (tab === '') renderQueue(); else if (tab === 'all') renderAll(); else renderLedger();
+    if (tab === '') renderQueue(); else if (tab === 'all') renderRegister(pane, claims, { openClaim, decisionChip }); else renderLedger();
     const openKey = tab === '' ? params[0] : params[1];
     if (openKey && openKey.includes(':')) { const c = claims.find(x => x.key === openKey); if (c) openClaim(c); }
 
@@ -82,28 +83,7 @@ export default {
       </button>`;
     }
 
-    // ── все претензии ──
-    function renderAll() {
-      let mp = '', st = 'open', q = '';
-      pane.innerHTML = `<div class="tile table-tile"><div class="row" style="padding:14px 16px">
-          <select class="select" id="f-mp" style="width:auto"><option value="">Все площадки</option>${Object.entries(D.MP).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select>
-          <select class="select" id="f-st" style="width:auto"><option value="open">Открытые</option><option value="">Все</option>${Object.entries(D.INTERNAL).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select>
-          <label class="search">${icon('search')}<input class="input" id="f-q" type="search" placeholder="Номер, пункт, товар"></label><span class="grow"></span><span class="muted small" id="f-n"></span></div>
-        <div class="table-wrap"><table class="t"><thead><tr><th>Дата</th><th>Площадка</th><th>№</th><th>Пункт</th><th>Товар / причина</th><th class="r">Сумма</th><th>Статус</th><th>Решение</th></tr></thead><tbody id="tb"></tbody></table></div></div>`;
-      const tb = pane.querySelector('#tb');
-      const draw = () => {
-        const f = claims.filter(c => (!mp || c.mp === mp) && (!st || (st === 'open' ? !c.closed : c.internal === st)) && (!q || `${c.id} ${c.pvzText} ${c.product} ${c.reason}`.toLowerCase().includes(q)));
-        pane.querySelector('#f-n').textContent = `${f.length} · ${rub(f.reduce((s, c) => s + c.sum, 0))}`;
-        tb.innerHTML = f.slice(0, 500).map(c => `<tr data-key="${esc(c.key)}"><td>${ruDate(c.date, true)}</td><td>${esc(D.MP[c.mp])}</td><td>${esc(c.id)}</td><td class="clip">${esc(c.pvzText || '—')}</td>
-          <td class="clip">${esc(c.product || c.reason || '—')}</td><td class="r">${c.sum ? rub(c.sum, true) : '—'}</td><td><span class="chip">${esc(c.ext || D.INTERNAL[c.internal])}</span></td>
-          <td>${decisionChip(c)}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">Ничего не найдено</td></tr>';
-      };
-      pane.querySelector('#f-mp').onchange = e => { mp = e.target.value; draw(); };
-      pane.querySelector('#f-st').onchange = e => { st = e.target.value; draw(); };
-      pane.querySelector('#f-q').oninput = e => { q = e.target.value.trim().toLowerCase(); draw(); };
-      tb.addEventListener('click', e => { const r = e.target.closest('[data-key]'); if (r) openClaim(claims.find(x => x.key === r.dataset.key)); });
-      draw();
-    }
+
     function decisionChip(c) {
       if (c.resp?.kind === 'employee') return `<span class="chip lav">${esc(empName(empById[c.resp.employee_id]) || 'сотрудник')}</span>`;
       if (c.resp?.kind === 'company') return '<span class="chip">за счёт компании</span>';
@@ -118,7 +98,7 @@ export default {
       const guess = D.matchPvz(c.pvzText, pvzs.filter(p => !p.test));
       const shiftDate = c.eventDate || c.date || today;
       const hist = Object.values(c.raw.history || {}).filter(h => h && (h.text || h.type)).sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
-      const left = c.deadline ? Math.ceil((new Date(c.deadline) - new Date(today)) / 86400000) : null;
+      const left = c.deadlineMs !== null ? (c.deadlineMs <= Date.now() ? -1 : Math.ceil((c.deadlineMs - Date.now()) / 86400000)) : c.deadline ? Math.ceil((new Date(c.deadline) - new Date(todayMsk())) / 86400000) : null;
       const decided = !!c.resp?.kind;
       const d = drawer({
         title: `${esc(D.MP[c.mp])} №${esc(c.id)}`,
