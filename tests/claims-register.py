@@ -10,9 +10,9 @@ FIXTURE = '''async () => {
     claim_date: '2026-10-01', amount: 100 + i, pvz: 'Тестовый пункт',
     reason_raw: 'Невозврат', item_name: 'Товар из претензии',
     marketplace_status: i % 3 === 0 ? 'Закрыта' : 'Ожидает ответа',
-    ...(i === 2 ? {deadline_at: '2026-12-04T21:00:18.710Z'} : {}),
+    ...(i === 2 ? {deadline_at: '2026-12-04T21:00:18.710Z', flow_type: 'Прямой', marketplace_status: 'GRPC_CLAIM_STATUS_RESPONSE_REQUIRED'} : {}),
   }]));
-  rows.ozon = {90002: {amount: 9999}, 80001: {claim_date:'2025-01-01', amount: 123, ozon_status:'Закрыта'}};
+  rows.ozon = {90002: {amount: 9999}, 80001: {claim_date:'2025-01-01', amount: 123, marketplace_status:'GRPC_CLAIM_STATUS_PAYED'}};
   rows.yandex = {active: {YM1: {claim_date:'2025-01-01', amount: 50}}};
   window.KZ = {ready: Promise.resolve(), db: () => ({ref: path => ({
     once: async () => {
@@ -54,11 +54,13 @@ with sync_playwright() as p:
         if width != 768:
             page.get_by_role('button', name='Последняя страница').click()
             expect(page.locator('#tb [data-key]')).to_have_count(12)
-            expect(page.locator('#tb [data-key="ozon:80001"]')).to_have_count(1)
+            expect(page.locator('#tb [data-key="ozon:80001"]')).to_contain_text('Оплачено')
             page.locator('#f-q').fill('90002')
             expect(page.locator('#tb [data-key]')).to_have_count(1)
             row = page.locator('#tb [data-key="ozon:90002"]')
             expect(row).to_contain_text('Невозврат')
+            expect(row).to_contain_text('Прямой')
+            expect(row).to_contain_text('Ожидает ответа')
             expect(row).to_contain_text('05.12')
             expect(row).not_to_contain_text('9 999')
             expect(row).to_contain_text('Сегодня')

@@ -147,6 +147,8 @@ const OZON_STATUS = {
   GRPC_CLAIM_STATUS_RESPONSE_REQUIRED: 'Ожидает ответа',
   GRPC_CLAIM_STATUS_ON_REVIEW: 'На рассмотрении',
   GRPC_CLAIM_STATUS_IN_PROGRESS: 'На рассмотрении',
+  GRPC_CLAIM_STATUS_PAYED: 'Оплачено',
+  GRPC_CLAIM_STATUS_CANCELLED: 'Аннулировано',
   GRPC_CLAIM_STATUS_WITHHOLDING: 'Удержание'
 };
 const moscowDay = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -183,7 +185,7 @@ export async function claims(opts) {
       date: normDate(c.claim_date || c.created_date || c.created_at || c.checked_at || c.collected_at),
       eventDate: normDate(c.cancel_or_loss_date || c.event_date),
       deadline: deadlineMs === null ? normDate(deadlineValue) : moscowDay.format(deadlineMs), deadlineMs,
-      flow: String(c.claim_flow || c.flow || '').trim(),
+      flow: String(c.flow_type || c.claim_flow || c.flow || '').trim(),
       pvzCode: String(c.pvz_code || (/^[A-ZА-ЯЁ_0-9]+$/.test(String(c.pvz || '')) ? c.pvz : '') || '').trim(),
       sum: Number(c.amount ?? c.sum) || 0,
       pvzText: c.pvz_address || c.pvz || c.pvz_code || c.address || '',
